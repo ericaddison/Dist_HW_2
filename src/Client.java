@@ -2,33 +2,20 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectOutputStream;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.Scanner;
 
 public class Client {
 	private String hostAddress;
 	private int tcpPort;
-	private int udpPort;
-	private boolean modeIsTCP = false; // TCP is default mode, other mode is UDP
 	private Socket tcpSocket = null;
 	private ObjectOutputStream out = null;
 	private BufferedReader in = null;
-	private DatagramSocket udpSocket;
 
-	public Client(String hostAddress, int tcpPort, int udpPort) {
+	public Client(String hostAddress, int tcpPort) {
 		super();
 		this.hostAddress = hostAddress;
 		this.tcpPort = tcpPort;
-		this.udpPort = udpPort;
-
-		try {
-			udpSocket = new DatagramSocket();
-		} catch (SocketException e) {
-			e.printStackTrace();
-		}
 	}
 
 	/**
@@ -39,12 +26,8 @@ public class Client {
 	 *            the object to send
 	 */
 	public void sendObject(Object o) {
-
 		try {
-			if (modeIsTCP)
-				out.writeObject(o);
-			else
-				UdpObjectIO.sendObject(o, InetAddress.getByName(hostAddress), udpPort, udpSocket);
+			out.writeObject(o);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -59,11 +42,7 @@ public class Client {
 	 */
 	public String receiveString() {
 		try {
-			if (modeIsTCP) {
-				return in.readLine();
-			} else {
-				return (String) UdpObjectIO.receiveObject(udpSocket, 1024).object;
-			}
+			return in.readLine();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -74,10 +53,6 @@ public class Client {
 	 * Connect to the server via TCP
 	 */
 	public void connectTCP() {
-		if (modeIsTCP)
-			return;
-
-		modeIsTCP = true;
 		try {
 			tcpSocket = new Socket(hostAddress, tcpPort);
 			out = new ObjectOutputStream(tcpSocket.getOutputStream());
@@ -87,42 +62,6 @@ public class Client {
 		}
 	}
 
-	/**
-	 * Set the network protocol to TCP or UDP
-	 * 
-	 * @param tokens
-	 *            string input from command line
-	 * @return server response
-	 */
-	public String setMode(String[] tokens) {
-		// expecting setmode T | U
-		if (tokens.length < 2) {
-			return "ERROR: Not enough tokens in setmode string" + "\nERROR: Expected format: setmode T | U";
-		} else {
-
-			String mode = tokens[1].toUpperCase();
-			if (mode.equals("T")) {
-				udpSocket.close();
-				connectTCP();
-				return "mode: TCP";
-			} else if (mode.equals("U")) {
-				modeIsTCP = false;
-				try {
-					tcpSocket.close();
-					udpSocket.connect(InetAddress.getByName(hostAddress), udpPort);
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-				return "mode: UDP";
-			} else {
-				// unrecognized mode, setting to TCP (since that is the default
-				// mode)
-				udpSocket.close();
-				connectTCP();
-				return ("ERROR: unrecognized mode: " + mode + "\nmode:TCP");
-			}
-		}
-	}
 
 	/**
 	 * Create and send a purchase order to the server
@@ -210,10 +149,7 @@ public class Client {
 				String[] tokens = sc.nextLine().split(" ");
 				String response = "";
 
-				if (tokens[0].equals("setmode"))
-					response = setMode(tokens);
-
-				else if (tokens[0].equals("purchase"))
+				if (tokens[0].equals("purchase"))
 					response = purchase(tokens);
 
 				else if (tokens[0].equals("cancel"))
@@ -240,19 +176,17 @@ public class Client {
 	 */
 	public static void main(String[] args) {
 
-		if (args.length != 3) {
-			System.out.println("ERROR: Provide 3 arguments");
+		if (args.length != 2) {
+			System.out.println("ERROR: Provide 2 arguments");
 			System.out.println("\t(1) <hostAddress>: the address of the server");
 			System.out.println("\t(2) <tcpPort>: the port number for TCP connection");
-			System.out.println("\t(3) <udpPort>: the port number for UDP connection");
 			System.exit(-1);
 		}
 
 		String hostAddress = args[0];
 		int tcpPort = Integer.parseInt(args[1]);
-		int udpPort = Integer.parseInt(args[2]);
 
-		Client client = new Client(hostAddress, tcpPort, udpPort);
+		Client client = new Client(hostAddress, tcpPort);
 
 		client.run();
 	}

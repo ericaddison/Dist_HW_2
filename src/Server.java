@@ -11,15 +11,13 @@ import java.util.logging.SimpleFormatter;
 public class Server {
 
 	private int tcpPort;
-	private int udpPort;
 	private Inventory inv;
 	private OrderHistory orders;
 	private final Logger log = Logger.getLogger(Server.class.getCanonicalName());
 
-	public Server(int tcpPort, int udpPort, String fileName) {
+	public Server(int tcpPort, String fileName) {
 		super();
 		this.tcpPort = tcpPort;
-		this.udpPort = udpPort;
 		inv = new Inventory(fileName);
 		orders = new OrderHistory();
 
@@ -29,7 +27,6 @@ public class Server {
 			log.addHandler(fh);
 			logInfo("Server initializing...");
 			logInfo("Server TCP Port: " + tcpPort);
-			logInfo("Server UDP Port: " + udpPort);
 			logInfo("Server Inventory File: " + fileName);
 			logInfo("Server init complete");
 			logInfo("--------------------------------");
@@ -51,11 +48,6 @@ public class Server {
 	 * threads for each incoming TCP connection.
 	 */
 	public void run() {
-
-		// start async udp responder here
-		logInfo("Starting UDP thread");
-		Thread udp_thread = new Thread(new UdpServerTask(this, udpPort));
-		udp_thread.start();
 
 		// listen for incoming TCP requests
 		logInfo("Starting TCP listen loop");
@@ -206,25 +198,22 @@ public class Server {
 	 * Run the main program
 	 * 
 	 * @param args
-	 *            command line input. Expects [tcpPort] [udpPort] [inventory
+	 *            command line input. Expects [tcpPort] [inventory
 	 *            file]
 	 */
 	public static void main(String[] args) {
 		int tcpPort;
-		int udpPort;
-		if (args.length != 3) {
-			System.out.println("ERROR: Provide 3 arguments");
+		if (args.length != 2) {
+			System.out.println("ERROR: Provide 2 arguments");
 			System.out.println("\t(1) <tcpPort>: the port number for TCP connection");
-			System.out.println("\t(2) <udpPort>: the port number for UDP connection");
-			System.out.println("\t(3) <file>: the file of inventory");
+			System.out.println("\t(2) <file>: the file of inventory");
 
 			System.exit(-1);
 		}
 		tcpPort = Integer.parseInt(args[0]);
-		udpPort = Integer.parseInt(args[1]);
-		String fileName = args[2];
+		String fileName = args[1];
 
-		Server server = new Server(tcpPort, udpPort, fileName);
+		Server server = new Server(tcpPort, fileName);
 		server.run();
 	}
 }
