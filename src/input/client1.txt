@@ -1,0 +1,6 @@
+2
+127.0.0.1:8025
+127.0.0.1:8030
+reserve Bob
+delete Mary
+search John
