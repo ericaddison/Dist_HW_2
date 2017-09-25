@@ -1,0 +1,14 @@
+phone 20
+laptop 15
+camera 10
+ps4 17
+xbox 8
+meat 100
+carrots 2
+salmon 40
+radio 10
+monitor 24
+dog_food 26
+fish_tank 405
+ketchup 2
+pizza 2345342
