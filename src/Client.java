@@ -64,20 +64,18 @@ public class Client {
 
 
 	/**
-	 * Create and send a purchase order to the server
+	 * TODO: XXXX
 	 * 
 	 * @param tokens
 	 *            string input from command line
 	 * @return server response
 	 */
-	public String purchase(String[] tokens) {
-		if (tokens.length < 4) {
-			return ("ERROR: Not enough tokens in purchase string"
-					+ "\nERROR: Expected format: purchase <user-name> <product-name> <quantity>");
+	public String reserve(String[] tokens) {
+		if (tokens.length < 2) {
+			return ("ERROR: Not enough tokens in reserve string"
+					+ "\nERROR: Expected format: reserve <name>");
 		} else {
-			String userName = tokens[1];
-			String productName = tokens[2];
-			int quantity = Integer.parseInt(tokens[3]);
+			String name = tokens[1];
 			ClientOrder order = new ClientOrder(userName, productName, quantity);
 			sendObject(order);
 			return receiveString();
@@ -85,15 +83,16 @@ public class Client {
 	}
 
 	/**
-	 * Create and send an order cancel request to the server
+	 * TODO: XXXX
 	 * 
 	 * @param tokens
 	 *            string input from command line
 	 * @return server response
 	 */
-	public String cancel(String[] tokens) {
-		if (tokens.length < 2) {
-			return ("ERROR: Not enough tokens in cancel string" + "\nERROR: Expected format: cancel <order-id>");
+	public String bookSeat(String[] tokens) {
+		if (tokens.length < 3) {
+			return ("ERROR: Not enough tokens in bookSeat string" + 
+		"\nERROR: Expected format: bookSeat <name> <seatNum>");
 		} else {
 			String orderID = tokens[1];
 
@@ -104,7 +103,7 @@ public class Client {
 	}
 
 	/**
-	 * Create and send a user search request to the server
+	 * TODO: XXXX
 	 * 
 	 * @param tokens
 	 *            string input from command line
@@ -112,7 +111,26 @@ public class Client {
 	 */
 	public String search(String[] tokens) {
 		if (tokens.length < 2) {
-			return ("ERROR: Not enough tokens in search string" + "\nERROR: Expected format: search <user-name>");
+			return ("ERROR: Not enough tokens in search string" + "\nERROR: Expected format: search <name>");
+		} else {
+			String userName = tokens[1];
+
+			sendObject(new ClientSearch(userName));
+			String orders = receiveString().replace(":", "\n");
+			return orders;
+		}
+	}
+	
+	/**
+	 * TODO: XXXX
+	 * 
+	 * @param tokens
+	 *            string input from command line
+	 * @return server response
+	 */
+	public String delete(String[] tokens) {
+		if (tokens.length < 2) {
+			return ("ERROR: Not enough tokens in delete string" + "\nERROR: Expected format: delete <name>");
 		} else {
 			String userName = tokens[1];
 
@@ -122,16 +140,7 @@ public class Client {
 		}
 	}
 
-	/**
-	 * Create and send an inventory list request to the server
-	 * 
-	 * @return server response
-	 */
-	public String list() {
-		sendObject(new ClientProductList());
-		String list = receiveString().replace(":", "\n");
-		return list;
-	}
+
 
 	/**
 	 * Run the client command-line interface
@@ -149,17 +158,17 @@ public class Client {
 				String[] tokens = sc.nextLine().split(" ");
 				String response = "";
 
-				if (tokens[0].equals("purchase"))
-					response = purchase(tokens);
+				if (tokens[0].equals("reserve"))
+					response = reserve(tokens);
 
-				else if (tokens[0].equals("cancel"))
-					response = cancel(tokens);
+				else if (tokens[0].equals("bookSeat"))
+					response = bookSeat(tokens);
 
 				else if (tokens[0].equals("search"))
 					response = search(tokens);
 
-				else if (tokens[0].equals("list"))
-					response = list();
+				else if (tokens[0].equals("delete"))
+					response = delete(tokens);
 
 				else
 					response = "ERROR: No such command\n";
