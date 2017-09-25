@@ -1,15 +1,21 @@
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.ObjectOutputStream;
+import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Client {
 	private String hostAddress;
 	private int tcpPort;
 	private Socket tcpSocket = null;
-	private ObjectOutputStream out = null;
+	private PrintWriter out = null;
 	private BufferedReader in = null;
 
 	public Client(String hostAddress, int tcpPort) {
@@ -19,34 +25,40 @@ public class Client {
 	}
 
 	/**
-	 * Send an object to the server, method depending on whether mode is TCP or
-	 * UDP
+	 * TODO: XXXX
 	 * 
 	 * @param o
 	 *            the object to send
 	 */
-	public void sendObject(Object o) {
+	public void sendRequest(Map<MessageFields, String> reqMap) {
+		ObjectMapper mapper = new ObjectMapper();
 		try {
-			out.writeObject(o);
-		} catch (IOException e) {
-			e.printStackTrace();
+			String jsonRequest = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(reqMap);
+			out.println(jsonRequest);
+		} catch (JsonProcessingException e1) {
+			e1.printStackTrace();
 		}
 	}
 
 	/**
-	 * receive a String from the server, method depending on whether mode is TCP
-	 * or UDP
+	 * TODO: XXXX
 	 * 
 	 * @param o
 	 *            the object to send
 	 */
-	public String receiveString() {
+	public Map<MessageFields, String> receiveResponse() {
 		try {
-			return in.readLine();
+			String recString = in.readLine();
+			
+			ObjectMapper mapper = new ObjectMapper();
+			TypeReference<HashMap<MessageFields, String>> typeRef 
+			  = new TypeReference<HashMap<MessageFields, String>>() {};
+			  
+			  return mapper.readValue(recString, typeRef);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		return "could not receive string";
+		return null;
 	}
 
 	/**
@@ -55,88 +67,10 @@ public class Client {
 	public void connectTCP() {
 		try {
 			tcpSocket = new Socket(hostAddress, tcpPort);
-			out = new ObjectOutputStream(tcpSocket.getOutputStream());
+			out = new PrintWriter(tcpSocket.getOutputStream());
 			in = new BufferedReader(new InputStreamReader(tcpSocket.getInputStream()));
 		} catch (IOException e) {
 			e.printStackTrace();
-		}
-	}
-
-
-	/**
-	 * TODO: XXXX
-	 * 
-	 * @param tokens
-	 *            string input from command line
-	 * @return server response
-	 */
-	public String reserve(String[] tokens) {
-		if (tokens.length < 2) {
-			return ("ERROR: Not enough tokens in reserve string"
-					+ "\nERROR: Expected format: reserve <name>");
-		} else {
-			String name = tokens[1];
-			ClientOrder order = new ClientOrder(userName, productName, quantity);
-			sendObject(order);
-			return receiveString();
-		}
-	}
-
-	/**
-	 * TODO: XXXX
-	 * 
-	 * @param tokens
-	 *            string input from command line
-	 * @return server response
-	 */
-	public String bookSeat(String[] tokens) {
-		if (tokens.length < 3) {
-			return ("ERROR: Not enough tokens in bookSeat string" + 
-		"\nERROR: Expected format: bookSeat <name> <seatNum>");
-		} else {
-			String orderID = tokens[1];
-
-			sendObject(new ClientCancel(orderID));
-			String cancelConf = receiveString().replace(":", "\n");
-			return cancelConf;
-		}
-	}
-
-	/**
-	 * TODO: XXXX
-	 * 
-	 * @param tokens
-	 *            string input from command line
-	 * @return server response
-	 */
-	public String search(String[] tokens) {
-		if (tokens.length < 2) {
-			return ("ERROR: Not enough tokens in search string" + "\nERROR: Expected format: search <name>");
-		} else {
-			String userName = tokens[1];
-
-			sendObject(new ClientSearch(userName));
-			String orders = receiveString().replace(":", "\n");
-			return orders;
-		}
-	}
-	
-	/**
-	 * TODO: XXXX
-	 * 
-	 * @param tokens
-	 *            string input from command line
-	 * @return server response
-	 */
-	public String delete(String[] tokens) {
-		if (tokens.length < 2) {
-			return ("ERROR: Not enough tokens in delete string" + "\nERROR: Expected format: delete <name>");
-		} else {
-			String userName = tokens[1];
-
-			sendObject(new ClientSearch(userName));
-			String orders = receiveString().replace(":", "\n");
-			return orders;
 		}
 	}
 
@@ -148,7 +82,7 @@ public class Client {
 	public void run() {
 
 		try (Scanner sc = new Scanner(System.in);) {
-			System.out.print(">>>");
+			System.out.print(">>> ");
 
 			// connect TCP by default
 			connectTCP();
@@ -156,24 +90,54 @@ public class Client {
 			// main command loop
 			while (sc.hasNextLine()) {
 				String[] tokens = sc.nextLine().split(" ");
-				String response = "";
+				Map<MessageFields, String> reqMap = new HashMap<>();
 
-				if (tokens[0].equals("reserve"))
-					response = reserve(tokens);
+				if (tokens[0].equals("reserve")){
+					if(tokens.length<2){
+						System.out.println("NOTE: not enough tokens in reserve string");
+						continue;
+					}
+					reqMap.put(MessageFields.REQUEST, Requests.RESERVE.toString());
+					reqMap.put(MessageFields.NAME, tokens[1]);
+				}
+					
+				
+				else if (tokens[0].equals("bookSeat")){
+					if(tokens.length<3){
+						System.out.println("NOTE: not enough tokens in bookseat string");
+						continue;
+					}
+					reqMap.put(MessageFields.REQUEST, Requests.BOOKSEAT.toString());
+					reqMap.put(MessageFields.NAME, tokens[1]);
+					reqMap.put(MessageFields.SEATNUM, tokens[2]);
+				}
 
-				else if (tokens[0].equals("bookSeat"))
-					response = bookSeat(tokens);
+				else if (tokens[0].equals("search")){
+					if(tokens.length<2){
+						System.out.println("NOTE: not enough tokens in search string");
+						continue;
+					}
+					reqMap.put(MessageFields.REQUEST, Requests.SEARCH.toString());
+					reqMap.put(MessageFields.NAME, tokens[1]);
+				}
 
-				else if (tokens[0].equals("search"))
-					response = search(tokens);
+				else if (tokens[0].equals("delete")){
+					if(tokens.length<2){
+						System.out.println("NOTE: not enough tokens in delete string");
+						continue;
+					}
+					reqMap.put(MessageFields.REQUEST, Requests.DELETE.toString());
+					reqMap.put(MessageFields.NAME, tokens[1]);
+				}
 
-				else if (tokens[0].equals("delete"))
-					response = delete(tokens);
+				else{
+					System.out.print("ERROR: No such command\n" + "\n>>> ");
+					continue;
+				}
+				
+				Map<MessageFields, String> response = receiveResponse();
+				System.out.println(response.get(MessageFields.MESSAGE) + "\n>>> ");
 
-				else
-					response = "ERROR: No such command\n";
-
-				System.out.print(response + "\n>>>");
 			}
 
 		}
