@@ -3,6 +3,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class TcpServerTask implements Runnable {
 
@@ -17,18 +22,6 @@ public class TcpServerTask implements Runnable {
 
 	@Override
 	public void run() {
-		try (PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
-				ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream());) {
-
-			Object receivedObject;
-			while ((receivedObject = in.readObject()) != null) {
-				String response = server.processObject(receivedObject);
-				out.println(response);
-			}
-		} catch (EOFException e) {
-			server.logWarn("Connection to " + clientSocket.getInetAddress() + " ended unexpectedly.");
-		} catch (IOException | ClassNotFoundException e) {
-			e.printStackTrace();
-		}
 	}
+	
 }
