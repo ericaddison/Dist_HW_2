@@ -37,9 +37,9 @@ public class Server {
 
 		parseServerFile(fileName);
 		seatAssignments = new ArrayList<>(nSeats);
-		for(int i=0; i<nSeats; i++)
+		for (int i = 0; i < nSeats; i++)
 			seatAssignments.add("");
-		
+
 		try {
 			FileHandler fh = new FileHandler("server_log_" + System.currentTimeMillis() + ".log");
 			fh.setFormatter(new SimpleFormatter());
@@ -49,7 +49,7 @@ public class Server {
 			logInfo("nServers = " + nServers);
 			logInfo("nSeats = " + nSeats);
 			logInfo("my tcp port = " + tcpPort);
-			for(int i=0; i<nServers; i++)
+			for (int i = 0; i < nServers; i++)
 				logInfo("Server " + i + ": " + servers.get(i) + ":" + ports.get(i));
 			logInfo("Server init complete");
 			logInfo("--------------------------------");
@@ -59,25 +59,25 @@ public class Server {
 	}
 
 	private void parseServerFile(String fileName) {
-		try(BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))){
-			
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))) {
+
 			// line 1 = serverID nServers nSeats
 			String[] toks = br.readLine().split(" ");
 			serverID = Integer.parseInt(toks[0]);
 			nServers = Integer.parseInt(toks[1]);
 			nSeats = Integer.parseInt(toks[2]);
-			
+
 			// remaining lines = server locations
 			String nextServer = "";
 			servers = new ArrayList<>(nServers);
 			ports = new ArrayList<>(nServers);
-			while( (nextServer = br.readLine()) != null){
+			while ((nextServer = br.readLine()) != null) {
 				String[] serverToks = nextServer.split(":");
 				servers.add(InetAddress.getByName(serverToks[0]));
 				ports.add(Integer.parseInt(serverToks[1]));
 			}
-			tcpPort = ports.get(serverID-1);
-			
+			tcpPort = ports.get(serverID - 1);
+
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -113,21 +113,20 @@ public class Server {
 		}
 
 	}
-	
+
 	public Map<String, String> receiveRequest(BufferedReader in) {
 		try {
 			String recString = in.readLine();
 			ObjectMapper mapper = new ObjectMapper();
-			TypeReference<HashMap<String, String>> typeRef 
-			  = new TypeReference<HashMap<String, String>>() {};
-			  return mapper.readValue(recString, typeRef);
+			TypeReference<HashMap<String, String>> typeRef = new TypeReference<HashMap<String, String>>() {
+			};
+			return mapper.readValue(recString, typeRef);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 		return null;
 	}
-	
-	
+
 	public void sendResponse(Map<String, String> respMap, PrintWriter out) {
 		ObjectMapper mapper = new ObjectMapper();
 		try {
@@ -138,13 +137,12 @@ public class Server {
 			e1.printStackTrace();
 		}
 	}
-	
-	
 
 	public Map<String, String> processRequest(Map<String, String> receivedMap) {
 		
 		String requestType = receivedMap.get(MessageFields.REQUEST.toString());
 		String name = receivedMap.get(MessageFields.NAME.toString());
+		int reservedSeat = seatAssignments.indexOf(name);
 		Map<String, String> response = new HashMap<>();		
 		String message = "Meep Morp";
 		
@@ -163,18 +161,50 @@ public class Server {
 					response.put(MessageFields.SEATNUM.toString(), ""+(nextSeat+1));
 				}
 			}
-		}
+				
+		} else if(requestType.equals(Requests.BOOKSEAT.toString())){
+			int seatNum = Integer.parseInt(receivedMap.get(MessageFields.SEATNUM.toString())); 
+			if(reservedSeat==seatNum)
+				message = "Seat already booked against name provided.";
+			else if(reservedSeat>=0){
+				message = "Seat " + (reservedSeat+1) + " is already booked against name " + name;
+				response.put(MessageFields.SEATNUM.toString(), ""+(reservedSeat+1));
+			} else if( !seatAssignments.get(seatNum-1).equals("")){
+				message = "Seat " + seatNum + " is not available.";
+			} else {
+				seatAssignments.set(seatNum-1, name);
+				message = "Seat assigned to you is " + (seatNum);
+				response.put(MessageFields.SEATNUM.toString(), ""+(seatNum));
+			}
+			
+		} else if(requestType.equals(Requests.SEARCH.toString())){
+			if(reservedSeat == -1){
+				message = "No reservation found for " + name;
+				response.put(MessageFields.SEATNUM.toString(), ""+(-1));
+			}
+			else{ 
+				message = "Reserved seat for " + name + " is " + (reservedSeat+1);
+				response.put(MessageFields.SEATNUM.toString(), ""+(reservedSeat+1));
+			}
 		
+		} else if(requestType.equals(Requests.DELETE.toString())){
+			if(reservedSeat == -1)
+				message = "No reservation found for " + name;
+			else { 
+				message = "Reservation deleted for " + name;
+				seatAssignments.set(reservedSeat, "");
+			}
+		}
+	
 		response.put(MessageFields.MESSAGE.toString(), message);
 		return response;
 	}
-	
+
 	/**
 	 * Run the main program
 	 * 
 	 * @param args
-	 *            command line input. Expects [tcpPort] [inventory
-	 *            file]
+	 *            command line input. Expects [tcpPort] [inventory file]
 	 */
 	public static void main(String[] args) {
 		if (args.length != 1) {
@@ -182,13 +212,13 @@ public class Server {
 			System.out.println("\t(1) <file>: the file of inventory");
 			System.exit(-1);
 		}
-		
+
 		String fileName = args[0];
-		try{
-			File file = new File(fileName); 
-			if( !file.exists() || file.isDirectory())
+		try {
+			File file = new File(fileName);
+			if (!file.exists() || file.isDirectory())
 				throw new FileNotFoundException();
-		} catch (FileNotFoundException e){
+		} catch (FileNotFoundException e) {
 			System.out.println("ERROR: Cannot find file " + fileName);
 			System.exit(-1);
 		}
@@ -196,5 +226,5 @@ public class Server {
 		Server server = new Server(fileName);
 		server.run();
 	}
-	
+
 }

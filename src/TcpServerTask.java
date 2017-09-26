@@ -24,9 +24,9 @@ public class TcpServerTask implements Runnable {
 				BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
 			Map<String, String> receivedMap = null;
 			while ((receivedMap = server.receiveRequest(in)) != null) {
-				server.logInfo("Received request " + receivedMap + " from " + clientSocket.getInetAddress());
+				server.logInfo("Received request map " + receivedMap + " from " + clientSocket.getInetAddress());
 				Map<String, String> respMap = server.processRequest(receivedMap);
-				server.logInfo("Sending response " + respMap + " to " + clientSocket.getInetAddress());
+				server.logInfo("Sending response map " + respMap + " to " + clientSocket.getInetAddress());
 				server.sendResponse(respMap, out);
 			}
 			
