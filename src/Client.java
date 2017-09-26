@@ -30,11 +30,12 @@ public class Client {
 	 * @param o
 	 *            the object to send
 	 */
-	public void sendRequest(Map<MessageFields, String> reqMap) {
+	public void sendRequest(Map<String, String> reqMap) {
 		ObjectMapper mapper = new ObjectMapper();
 		try {
-			String jsonRequest = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(reqMap);
+			String jsonRequest = mapper.writer().writeValueAsString(reqMap);
 			out.println(jsonRequest);
+			out.flush();
 		} catch (JsonProcessingException e1) {
 			e1.printStackTrace();
 		}
@@ -46,13 +47,13 @@ public class Client {
 	 * @param o
 	 *            the object to send
 	 */
-	public Map<MessageFields, String> receiveResponse() {
+	public Map<String, String> receiveResponse() {
 		try {
 			String recString = in.readLine();
 			
 			ObjectMapper mapper = new ObjectMapper();
-			TypeReference<HashMap<MessageFields, String>> typeRef 
-			  = new TypeReference<HashMap<MessageFields, String>>() {};
+			TypeReference<HashMap<String, String>> typeRef 
+			  = new TypeReference<HashMap<String, String>>() {};
 			  
 			  return mapper.readValue(recString, typeRef);
 		} catch (IOException e) {
@@ -86,19 +87,19 @@ public class Client {
 
 			// connect TCP by default
 			connectTCP();
-
+		
 			// main command loop
 			while (sc.hasNextLine()) {
 				String[] tokens = sc.nextLine().split(" ");
-				Map<MessageFields, String> reqMap = new HashMap<>();
+				Map<String, String> reqMap = new HashMap<>();
 
 				if (tokens[0].equals("reserve")){
 					if(tokens.length<2){
 						System.out.println("NOTE: not enough tokens in reserve string");
 						continue;
 					}
-					reqMap.put(MessageFields.REQUEST, Requests.RESERVE.toString());
-					reqMap.put(MessageFields.NAME, tokens[1]);
+					reqMap.put(MessageFields.REQUEST.toString(), Requests.RESERVE.toString());
+					reqMap.put(MessageFields.NAME.toString(), tokens[1]);
 				}
 					
 				
@@ -107,9 +108,9 @@ public class Client {
 						System.out.println("NOTE: not enough tokens in bookseat string");
 						continue;
 					}
-					reqMap.put(MessageFields.REQUEST, Requests.BOOKSEAT.toString());
-					reqMap.put(MessageFields.NAME, tokens[1]);
-					reqMap.put(MessageFields.SEATNUM, tokens[2]);
+					reqMap.put(MessageFields.REQUEST.toString(), Requests.BOOKSEAT.toString());
+					reqMap.put(MessageFields.NAME.toString(), tokens[1]);
+					reqMap.put(MessageFields.SEATNUM.toString(), tokens[2]);
 				}
 
 				else if (tokens[0].equals("search")){
@@ -117,8 +118,8 @@ public class Client {
 						System.out.println("NOTE: not enough tokens in search string");
 						continue;
 					}
-					reqMap.put(MessageFields.REQUEST, Requests.SEARCH.toString());
-					reqMap.put(MessageFields.NAME, tokens[1]);
+					reqMap.put(MessageFields.REQUEST.toString(), Requests.SEARCH.toString());
+					reqMap.put(MessageFields.NAME.toString(), tokens[1]);
 				}
 
 				else if (tokens[0].equals("delete")){
@@ -126,8 +127,8 @@ public class Client {
 						System.out.println("NOTE: not enough tokens in delete string");
 						continue;
 					}
-					reqMap.put(MessageFields.REQUEST, Requests.DELETE.toString());
-					reqMap.put(MessageFields.NAME, tokens[1]);
+					reqMap.put(MessageFields.REQUEST.toString(), Requests.DELETE.toString());
+					reqMap.put(MessageFields.NAME.toString(), tokens[1]);
 				}
 
 				else{
@@ -135,8 +136,10 @@ public class Client {
 					continue;
 				}
 				
-				Map<MessageFields, String> response = receiveResponse();
-				System.out.println(response.get(MessageFields.MESSAGE) + "\n>>> ");
+				sendRequest(reqMap);
+				Map<String, String> response = receiveResponse();
+				String responseString = response.get(MessageFields.MESSAGE.toString());
+				System.out.println(responseString + "\n>>> ");
 
 			}
 
