@@ -1,9 +1,18 @@
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.ConnectException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
@@ -12,18 +21,52 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Client {
-	private String hostAddress;
-	private int tcpPort;
+	
+	public static final int TIMEOUT=100;
+	
 	private Socket tcpSocket = null;
 	private PrintWriter out = null;
 	private BufferedReader in = null;
-
-	public Client(String hostAddress, int tcpPort) {
+	private int nServers;
+	private List<InetAddress> servers;
+	private List<Integer> ports;
+	private List<String> commands;
+	
+	public Client(String fileName) {
 		super();
-		this.hostAddress = hostAddress;
-		this.tcpPort = tcpPort;
+		parseClientFile(fileName);
 	}
 
+	
+	private void parseClientFile(String fileName) {
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))) {
+
+			// line 1 = serverID nServers nSeats
+			nServers = Integer.parseInt(br.readLine());
+			for(int i=0; i<nServers; i++)
+
+			// remaining lines = server locations
+			servers = new ArrayList<>(nServers);
+			ports = new ArrayList<>(nServers);
+			for(int i=0; i<nServers; i++){
+				String nextServer = br.readLine();
+				String[] serverToks = nextServer.split(":");
+				servers.add(InetAddress.getByName(serverToks[0]));
+				ports.add(Integer.parseInt(serverToks[1]));
+			}
+			
+			commands = new ArrayList<>();
+			String nextCommand = "";
+			while ((nextCommand = br.readLine()) != null) {
+				commands.add(nextCommand);
+			}
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
 	/**
 	 * TODO: XXXX
 	 * 
@@ -65,11 +108,27 @@ public class Client {
 	/**
 	 * Connect to the server via TCP
 	 */
-	public void connectTCP() {
+	public void connectTCP() throws SocketTimeoutException{
 		try {
-			tcpSocket = new Socket(hostAddress, tcpPort);
+			
+			for(int serverNum=0; serverNum<nServers; serverNum++){
+				try{
+					tcpSocket = new Socket();
+					tcpSocket.connect(new InetSocketAddress(servers.get(serverNum), ports.get(serverNum)), TIMEOUT);
+				} catch (SocketTimeoutException e){
+					System.out.println("Timed out trying to connect to " + servers.get(serverNum) + ":" + ports.get(serverNum));
+				} catch (ConnectException e){
+					System.out.println("Connection refused from " + servers.get(serverNum) + ":" + ports.get(serverNum));
+				} finally {
+					if(serverNum==(nServers-1))
+						throw new SocketTimeoutException("Failed to connect to any server: please try again later!");
+				}
+			}
+			
 			out = new PrintWriter(tcpSocket.getOutputStream());
 			in = new BufferedReader(new InputStreamReader(tcpSocket.getInputStream()));
+		} catch (SocketTimeoutException e){
+			throw e;
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -80,7 +139,7 @@ public class Client {
 	/**
 	 * Run the client command-line interface
 	 */
-	public void run() {
+	public void run() throws SocketTimeoutException{
 
 		try (Scanner sc = new Scanner(System.in);) {
 			System.out.print(">>> ");
@@ -152,19 +211,29 @@ public class Client {
 	 */
 	public static void main(String[] args) {
 
-		if (args.length != 2) {
-			System.out.println("ERROR: Provide 2 arguments");
-			System.out.println("\t(1) <hostAddress>: the address of the server");
-			System.out.println("\t(2) <tcpPort>: the port number for TCP connection");
+		if (args.length != 1) {
+			System.out.println("ERROR: Provide 1 arguments");
+			System.out.println("\t(1) <client file>: Client config file");
 			System.exit(-1);
 		}
 
-		String hostAddress = args[0];
-		int tcpPort = Integer.parseInt(args[1]);
-
-		Client client = new Client(hostAddress, tcpPort);
-
-		client.run();
+		String fileName = args[0];
+		try {
+			File file = new File(fileName);
+			if (!file.exists() || file.isDirectory())
+				throw new FileNotFoundException();
+		} catch (FileNotFoundException e) {
+			System.out.println("ERROR: Cannot find file " + fileName);
+			System.exit(-1);
+		}
+		
+		Client client = new Client(fileName);
+		
+		try{
+			client.run();
+		} catch (SocketTimeoutException e){
+			System.out.println(e.getMessage());
+		}
 	}
 
 }
