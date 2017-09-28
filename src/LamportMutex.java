@@ -91,7 +91,8 @@ public class LamportMutex {
 
 	private void sendRequest(LogicalClock c) {
 		numACKs = 0;
-		LamportMessage r = new LamportMessage(serverID, c);
+		LamportMessage.LamportMessageType type = LamportMessage.LamportMessageType.CS_REQUEST; 
+		LamportMessage r = new LamportMessage(type, serverID, c);
 		broadcastMessage(r.toString());
 		//receiveFromAll();
 		Q.add(r);
@@ -100,11 +101,14 @@ public class LamportMutex {
 	
 	void listenerLoop(int otherServerID){
 		try {
-			while(true){
-				String line = lamportReaders[otherServerID].readLine();
-				System.out.println("Received string " + line + " from server " + otherServerID);
+			String msg = "";
+			while( (msg = lamportReaders[otherServerID].readLine()) != null){
+				System.out.println("Received string " + msg + " from server " + otherServerID);
 				// process message based on type
 			}
+			
+			// might want this to throw an exception so thread can go back to listeneing
+			System.out.println("Uh oh! Lost connection with server " + otherServerID);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
