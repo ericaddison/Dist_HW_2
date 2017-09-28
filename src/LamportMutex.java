@@ -1,4 +1,7 @@
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -12,19 +15,17 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 public class LamportMutex {
 
-	public enum LamportMessageType {
-		CS_REQUEST, CS_ACK, CS_RELEASE
-	}
-
 	private List<InetAddress> servers;
 	private List<Integer> ports;
 	private Socket[] lamportSockets; // each server has N-1 sockets to
 										// communicate with the N-1 other
 										// servers
 	private Thread[] lamportThreads;
+	private PrintWriter[] lamportWriters;
+	private BufferedReader[] lamportReaders;
 	private int nServers;
 	private int serverID;
-	private PriorityBlockingQueue<LamportRequest> Q;
+	private PriorityBlockingQueue<LamportMessage> Q;
 	private int numACKs;
 
 	public LamportMutex(List<InetAddress> servers, List<Integer> ports, int serverID) {
@@ -35,6 +36,8 @@ public class LamportMutex {
 		Q = new PriorityBlockingQueue<>();
 		lamportThreads = new Thread[nServers];
 		lamportSockets = new Socket[nServers];
+		lamportWriters = new PrintWriter[nServers];
+		lamportReaders = new BufferedReader[nServers];
 
 		// create other connections
 		for (int i = 0; i < nServers; i++) {
@@ -49,37 +52,34 @@ public class LamportMutex {
 
 					System.out.println("serverID = " + serverID);
 					System.out.println("ii = " + ii);
+					Socket sock = null;
 
-					if (serverID < ii) { // act as the "server" for this pair
-						try (ServerSocket serverSocket = new ServerSocket(ports.get(serverID) + 1);) {
-							Socket clientSocket = serverSocket.accept();
-							lamportSockets[ii] = clientSocket;
-							System.out.println("Connection made from " + ii);
-							// loop forever
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
+					try {
 
-					} else { // act as the "client" for this pair
+						if (serverID < ii) { // act as the "server" for this
+												// pair
+							ServerSocket serverSocket = new ServerSocket(ports.get(serverID) + 1);
+							sock = serverSocket.accept();
+						} else { // act as the "client" for this pair
 
-						try (Socket sock = new Socket();) {
+							sock = new Socket();
 							sock.connect(new InetSocketAddress(servers.get(ii), ports.get(ii) + 1), Client.TIMEOUT);
-							lamportSockets[ii] = sock;
-							System.out.println("Connection made to " + ii);
-							
-						// TODO: come back to this!
-						/*} catch (ConnectException e) {
-							try {
-								Thread.sleep(1000); // if could not connect,
-													// wait 1 second and try
-													// again
-							} catch (InterruptedException e1) {
-							}*/
-						} catch (IOException e) {
-							e.printStackTrace();
+							// TODO: come back to this!
+							/*
+							 * } catch (ConnectException e) { try {
+							 * Thread.sleep(1000); // if could not connect, //
+							 * wait 1 second and try // again } catch
+							 * (InterruptedException e1) { }
+							 */
 						}
+						lamportSockets[ii] = sock;
+						lamportWriters[ii] = new PrintWriter(sock.getOutputStream());
+						lamportReaders[ii] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+						System.out.println("Connection made from " + ii);
+						listenerLoop(ii);
+					} catch (IOException e) {
+						e.printStackTrace();
 					}
-
 				}
 			};
 
@@ -91,21 +91,35 @@ public class LamportMutex {
 
 	private void sendRequest(LogicalClock c) {
 		numACKs = 0;
-		LamportRequest r = new LamportRequest(serverID, c);
+		LamportMessage r = new LamportMessage(serverID, c);
 		broadcastMessage(r.toString());
-		// lreceiveFromAll();
+		//receiveFromAll();
 		Q.add(r);
 	}
 
-	private void sendMessage(int serverID, String message) {
-
+	
+	void listenerLoop(int otherServerID){
+		try {
+			while(true){
+				String line = lamportReaders[otherServerID].readLine();
+				System.out.println("Received string " + line + " from server " + otherServerID);
+				// process message based on type
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
+	private void sendMessage(int otherServerID, String message) {
+		lamportWriters[otherServerID].println(message);
 	}
 
 	private void broadcastMessage(String msg) {
 
 		for (int i = 0; i < servers.size(); i++) {
-			if (i != serverID)
-				;
+			if (i == serverID)
+				continue;
 			sendMessage(i, msg);
 		}
 
