@@ -1,6 +1,8 @@
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -46,6 +48,37 @@ public class ClientCancel implements Serializable {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		
+		
+		
+		// try to JSON a list
+		List<String> list = new ArrayList<>();
+		list.add("0");
+		list.add("1");
+		list.add("2");
+		list.add("");
+		
+		TypeReference<List<String>> typeRefList 
+		  = new TypeReference<List<String>>() {};
+		
+	  try {
+			requestJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(list);
+			System.out.println(requestJson);
+		} catch (JsonProcessingException e) {
+			e.printStackTrace();
+		}
+		  
+		try {
+			List<String> listR = mapper.readValue(requestJson, typeRefList);
+			System.out.println(listR);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		  
+		
+		
+		
+		
 	}
 
 }
