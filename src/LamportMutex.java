@@ -2,16 +2,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
-
-import com.fasterxml.jackson.core.type.TypeReference;
 
 public class LamportMutex {
 
@@ -26,14 +22,15 @@ public class LamportMutex {
 	private BufferedReader[] lamportReaders;
 	private int nServers;
 	private int serverID;
+	private Server server;
 	private PriorityBlockingQueue<LamportMessage> Q;
 	private int numACKs;
-	private boolean frontOfQ;
 
-	public LamportMutex(List<InetAddress> servers, List<Integer> ports, int serverID) {
+	public LamportMutex(List<InetAddress> servers, List<Integer> ports, Server server) {
 		this.servers = servers;
 		this.ports = ports;
-		this.serverID = serverID;
+		this.server = server;
+		this.serverID = server.getID();
 		nServers = servers.size();
 		Q = new PriorityBlockingQueue<>();
 		clock = new LogicalClock();
@@ -67,7 +64,7 @@ public class LamportMutex {
 
 							sock = new Socket();
 							sock.connect(new InetSocketAddress(servers.get(ii), ports.get(ii) + 1), Client.TIMEOUT);
-							// TODO: come back to this!
+							// TODO: Deal with fault tolerance here
 							/*
 							 * } catch (ConnectException e) { try {
 							 * Thread.sleep(1000); // if could not connect, //
@@ -145,6 +142,9 @@ public class LamportMutex {
 		} else if(lm.type == LamportMessageType.CS_RELEASE){
 			// remove their entry from the Q
 			Q.remove();
+			
+			// update server data
+			server.syncData(lm.data);
 		}
 		clock.increment();
 	}

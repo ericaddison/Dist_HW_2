@@ -68,7 +68,7 @@ public class Client {
 	
 	
 	/**
-	 * TODO: XXXX
+	 * TODO: fill in javadoc
 	 * 
 	 * @param o
 	 *            the object to send
@@ -85,7 +85,7 @@ public class Client {
 	}
 
 	/**
-	 * TODO: XXXX
+	 * TODO: fill in javadoc
 	 * 
 	 * @param o
 	 *            the object to send

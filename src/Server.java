@@ -9,6 +9,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +43,7 @@ public class Server {
 		for (int i = 0; i < nSeats; i++)
 			seatAssignments.add("");
 
-		mutex = new LamportMutex(servers, ports, serverID);
+		mutex = new LamportMutex(servers, ports, this);
 		
 		try {
 			FileHandler fh = new FileHandler("server_log_" + System.currentTimeMillis() + ".log");
@@ -62,6 +63,16 @@ public class Server {
 		}
 	}
 
+	
+	public int getID(){
+		return serverID;
+	}
+	
+	protected void syncData(String newData){
+		String[] toks = newData.split(", ");
+		seatAssignments = Arrays.asList(toks);
+	}
+	
 	private void parseServerFile(String fileName) {
 		try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))) {
 
