@@ -17,6 +17,7 @@ public class LamportMutex {
 
 	private List<InetAddress> servers;
 	private List<Integer> ports;
+	private LogicalClock clock;
 	private Socket[] lamportSockets; // each server has N-1 sockets to
 										// communicate with the N-1 other
 										// servers
@@ -27,6 +28,7 @@ public class LamportMutex {
 	private int serverID;
 	private PriorityBlockingQueue<LamportMessage> Q;
 	private int numACKs;
+	private boolean frontOfQ;
 
 	public LamportMutex(List<InetAddress> servers, List<Integer> ports, int serverID) {
 		this.servers = servers;
@@ -34,6 +36,7 @@ public class LamportMutex {
 		this.serverID = serverID;
 		nServers = servers.size();
 		Q = new PriorityBlockingQueue<>();
+		clock = new LogicalClock();
 		lamportThreads = new Thread[nServers];
 		lamportSockets = new Socket[nServers];
 		lamportWriters = new PrintWriter[nServers];
@@ -89,15 +92,6 @@ public class LamportMutex {
 		}
 	}
 
-	private void sendRequest(LogicalClock c) {
-		numACKs = 0;
-		LamportMessage.LamportMessageType type = LamportMessage.LamportMessageType.CS_REQUEST; 
-		LamportMessage r = new LamportMessage(type, serverID, c);
-		broadcastMessage(r.toString());
-		//receiveFromAll();
-		Q.add(r);
-	}
-
 	
 	void listenerLoop(int otherServerID){
 		try {
@@ -105,6 +99,7 @@ public class LamportMutex {
 			while( (msg = lamportReaders[otherServerID].readLine()) != null){
 				System.out.println("Received string " + msg + " from server " + otherServerID);
 				// process message based on type
+				receiveMessage(msg);
 			}
 			
 			// might want this to throw an exception so thread can go back to listeneing
@@ -117,6 +112,9 @@ public class LamportMutex {
 	
 	private void sendMessage(int otherServerID, String message) {
 		lamportWriters[otherServerID].println(message);
+		
+		// increment clock
+		clock.increment();
 	}
 
 	private void broadcastMessage(String msg) {
@@ -129,34 +127,56 @@ public class LamportMutex {
 
 	}
 
-	private void loop() {
 
-		while (true) {
-			// sit there and listen
-			// on active TCP connections with each other server????
-		}
-
-	}
-
+	// TODO: Add print statements for debugging
+	
 	// put this in an infinite listen loop
-	private void receiveMessage() {
+	private void receiveMessage(String msg) {
+		
+		// deserialize into LamportMessage object
+		LamportMessage lm = LamportMessage.fromString(msg);
+		
 		// behavior determined by message type
-		// if type == CS_REQUEST
-		// process a request ... parse a LamportRequest
-		// Q.add(r);
-		// send ACK
-		// etc.
-
+		if(lm.type == LamportMessageType.CS_REQUEST){
+			Q.add(lm);	// add his timestamp or our timestamp?
+			sendMessage(lm.serverID, LamportMessage.ACK(serverID).toString());
+		} else if(lm.type == LamportMessageType.CS_ACK){
+			numACKs++;
+		} else if(lm.type == LamportMessageType.CS_RELEASE){
+			// remove their entry from the Q
+			Q.remove();
+		}
+		clock.increment();
 	}
 
-	// send to this server
+	
+	public void releaseCS(String data) {
+		LamportMessage lm = LamportMessage.RELEASE(serverID, data);
+		broadcastMessage(lm.toString());
+		Q.remove();
+	}
 
-	private void releaseCS(String data) {
-		// now send data packed into a message with CS_RELEASE as messagetype
-
-		TypeReference<List<String>> typeRef = new TypeReference<List<String>>() {
-		};
-
+	// this is the request made by a server to enter the CS
+	public void requestCriticalSection() {
+		
+		numACKs = 0;
+		LamportMessage lm = new LamportMessage(LamportMessageType.CS_REQUEST, serverID, clock);
+		
+		// enter (timestamp, serverID) of request in Q
+		Q.add(lm);
+		
+		// send request to N-1 other servers
+		broadcastMessage(lm.toString());
+		
+		// wait for N-1 numAcks
+		while(numACKs<nServers-1 && !(Q.peek().serverID==serverID)){
+			try {
+				Thread.sleep(10);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+		
 	}
 
 }

@@ -1,6 +1,14 @@
 
 public class LogicalClock {
 
-	public int c=0;
+	private int c=0;
+	
+	public void increment(){
+		c++;
+	}
+	
+	public int value(){
+		return c;
+	}
 	
 }
