@@ -32,7 +32,6 @@ public class Server {
 	private List<InetAddress> servers;
 	private List<Integer> ports;
 	private LamportMutex mutex;
-	private LogicalClock clock;
 	private final Logger log = Logger.getLogger(Server.class.getCanonicalName());
 
 	public Server(String fileName) {
@@ -165,63 +164,69 @@ public class Server {
 
 		// this blocks until we have permission
 		mutex.requestCriticalSection();
-
-		String requestType = receivedMap.get(MessageFields.REQUEST.toString());
-		String name = receivedMap.get(MessageFields.NAME.toString());
-		int reservedSeat = seatAssignments.indexOf(name);
 		Map<String, String> response = new HashMap<>();
 		String message = "Meep Morp";
-
-		if (requestType.equals(Requests.RESERVE.toString())) {
-			if (seatAssignments.contains(name))
-				message = "Seat already booked against name provided.";
-			else {
-				int nextSeat = seatAssignments.indexOf("");
-				if (nextSeat == -1) {
-					message = "Sold out - no seat available.";
-					response.put(MessageFields.SEATNUM.toString(), "-1");
+		Requests requestType = null;
+		
+		try{
+			requestType = Requests.valueOf(receivedMap.get(MessageFields.REQUEST.toString()));
+			String name = receivedMap.get(MessageFields.NAME.toString());
+			int reservedSeat = seatAssignments.indexOf(name);
+	
+			if (requestType==Requests.RESERVE) {
+				if (seatAssignments.contains(name))
+					message = "Seat already booked against name provided.";
+				else {
+					int nextSeat = seatAssignments.indexOf("");
+					if (nextSeat == -1) {
+						message = "Sold out - no seat available.";
+						response.put(MessageFields.SEATNUM.toString(), "-1");
+					} else {
+						seatAssignments.set(nextSeat, name);
+						message = "Seat assigned to you is " + (nextSeat + 1);
+						response.put(MessageFields.SEATNUM.toString(), "" + (nextSeat + 1));
+					}
+				}
+	
+			} else if (requestType==Requests.BOOKSEAT) {
+				int seatNum = Integer.parseInt(receivedMap.get(MessageFields.SEATNUM.toString()));
+				if (reservedSeat == seatNum)
+					message = "Seat already booked against name provided.";
+				else if (reservedSeat >= 0) {
+					message = "Seat " + (reservedSeat + 1) + " is already booked against name " + name;
+					response.put(MessageFields.SEATNUM.toString(), "" + (reservedSeat + 1));
+				} else if (!seatAssignments.get(seatNum - 1).equals("")) {
+					message = "Seat " + seatNum + " is not available.";
 				} else {
-					seatAssignments.set(nextSeat, name);
-					message = "Seat assigned to you is " + (nextSeat + 1);
-					response.put(MessageFields.SEATNUM.toString(), "" + (nextSeat + 1));
+					seatAssignments.set(seatNum - 1, name);
+					message = "Seat assigned to you is " + (seatNum);
+					response.put(MessageFields.SEATNUM.toString(), "" + (seatNum));
+				}
+	
+			} else if (requestType==Requests.SEARCH) {
+				if (reservedSeat == -1) {
+					message = "No reservation found for " + name;
+					response.put(MessageFields.SEATNUM.toString(), "" + (-1));
+				} else {
+					message = "Reserved seat for " + name + " is " + (reservedSeat + 1);
+					response.put(MessageFields.SEATNUM.toString(), "" + (reservedSeat + 1));
+				}
+	
+			} else if (requestType==Requests.DELETE) {
+				if (reservedSeat == -1)
+					message = "No reservation found for " + name;
+				else {
+					message = "Reservation deleted for " + name;
+					seatAssignments.set(reservedSeat, "");
 				}
 			}
 
-		} else if (requestType.equals(Requests.BOOKSEAT.toString())) {
-			int seatNum = Integer.parseInt(receivedMap.get(MessageFields.SEATNUM.toString()));
-			if (reservedSeat == seatNum)
-				message = "Seat already booked against name provided.";
-			else if (reservedSeat >= 0) {
-				message = "Seat " + (reservedSeat + 1) + " is already booked against name " + name;
-				response.put(MessageFields.SEATNUM.toString(), "" + (reservedSeat + 1));
-			} else if (!seatAssignments.get(seatNum - 1).equals("")) {
-				message = "Seat " + seatNum + " is not available.";
-			} else {
-				seatAssignments.set(seatNum - 1, name);
-				message = "Seat assigned to you is " + (seatNum);
-				response.put(MessageFields.SEATNUM.toString(), "" + (seatNum));
-			}
-
-		} else if (requestType.equals(Requests.SEARCH.toString())) {
-			if (reservedSeat == -1) {
-				message = "No reservation found for " + name;
-				response.put(MessageFields.SEATNUM.toString(), "" + (-1));
-			} else {
-				message = "Reserved seat for " + name + " is " + (reservedSeat + 1);
-				response.put(MessageFields.SEATNUM.toString(), "" + (reservedSeat + 1));
-			}
-
-		} else if (requestType.equals(Requests.DELETE.toString())) {
-			if (reservedSeat == -1)
-				message = "No reservation found for " + name;
-			else {
-				message = "Reservation deleted for " + name;
-				seatAssignments.set(reservedSeat, "");
-			}
+		}catch(IllegalArgumentException e){
+			// bad requestType parsing...
+			message = "Invalid command";
 		}
-
+	
 		response.put(MessageFields.MESSAGE.toString(), message);
-
 		mutex.releaseCS(serializeData());
 
 		return response;

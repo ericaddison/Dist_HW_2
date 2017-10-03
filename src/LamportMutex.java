@@ -33,7 +33,7 @@ public class LamportMutex {
 		this.serverID = server.getID();
 		nServers = servers.size();
 		Q = new PriorityBlockingQueue<>();
-		clock = new LogicalClock();
+		clock = new LogicalClock(0);
 		lamportThreads = new Thread[nServers];
 		lamportSockets = new Socket[nServers];
 		lamportWriters = new PrintWriter[nServers];
@@ -58,6 +58,7 @@ public class LamportMutex {
 
 						if (serverID < ii) { // act as the "server" for this
 												// pair
+							// TODO: resource leak???
 							ServerSocket serverSocket = new ServerSocket(ports.get(serverID) + 1);
 							sock = serverSocket.accept();
 						} else { // act as the "client" for this pair
@@ -160,7 +161,7 @@ public class LamportMutex {
 	public void requestCriticalSection() {
 		
 		numACKs = 0;
-		LamportMessage lm = new LamportMessage(LamportMessageType.CS_REQUEST, serverID, clock);
+		LamportMessage lm = LamportMessage.REQUEST(serverID, clock);
 		
 		// enter (timestamp, serverID) of request in Q
 		Q.add(lm);

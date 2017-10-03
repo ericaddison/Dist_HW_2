@@ -1,5 +1,8 @@
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class LamportMessage implements Comparable<LamportMessage> {
 	
@@ -10,7 +13,7 @@ public class LamportMessage implements Comparable<LamportMessage> {
 	LogicalClock clock;
 	String data;
 	
-	public LamportMessage(LamportMessageType type, int serverID, LogicalClock clock, String data) {
+	private LamportMessage(LamportMessageType type, int serverID, LogicalClock clock, String data) {
 		this.type = type;
 		this.serverID = serverID;
 		this.clock = clock;
@@ -18,18 +21,16 @@ public class LamportMessage implements Comparable<LamportMessage> {
 	}
 
 	
-	
-	public LamportMessage(LamportMessageType type, int serverID, LogicalClock clock) {
-		this(type, serverID, clock, null);
-	}
-	
-	
 	public static LamportMessage ACK(int serverID) {
-		return new LamportMessage(LamportMessageType.CS_ACK, serverID, null);
+		return new LamportMessage(LamportMessageType.CS_ACK, serverID, null, null);
 	}
 	
 	public static LamportMessage RELEASE(int serverID, String data) {
 		return new LamportMessage(LamportMessageType.CS_RELEASE, serverID, null, data);
+	}
+	
+	public static LamportMessage REQUEST(int serverID, LogicalClock clock) {
+		return new LamportMessage(LamportMessageType.CS_RELEASE, serverID, clock, null);
 	}
 
 
@@ -38,16 +39,27 @@ public class LamportMessage implements Comparable<LamportMessage> {
 		if (clock.value() < o.clock.value()) 
 			return -1;
 		else if (clock.value() == o.clock.value())
-			return 0;
-		else
-			return 1;
+			if(serverID < o.serverID)
+				return -1;
+			else if(serverID==o.serverID)
+				return 0;
+		return 1;
 	}
 	
 	@Override
 	public String toString() {
-		// TODO: LamportMEssage serialize
-		// return Json-ized string
-		// including message type = CS_REQUEST
+		Map<String, String> map = new HashMap<>();
+		map.put("type", type.toString())
+		
+		
+		ObjectMapper mapper = new ObjectMapper();
+		try {
+			String jsonRequest = mapper.writer().writeValueAsString(reqMap);
+			out.println(jsonRequest);
+			out.flush();
+		} catch (JsonProcessingException e1) {
+			e1.printStackTrace();
+		}
 		return super.toString();
 	}
 	
