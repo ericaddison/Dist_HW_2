@@ -8,6 +8,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.logging.Level;
 
 public class LamportMutex {
 
@@ -39,6 +40,7 @@ public class LamportMutex {
 		lamportWriters = new PrintWriter[nServers];
 		lamportReaders = new BufferedReader[nServers];
 
+		server.log.log(Level.INFO, "Lamport Mutex initating connections");
 		// create other connections
 		for (int i = 0; i < nServers; i++) {
 			if (i == serverID)
@@ -49,9 +51,6 @@ public class LamportMutex {
 
 				@Override
 				public void run() {
-
-					System.out.println("serverID = " + serverID);
-					System.out.println("ii = " + ii);
 					Socket sock = null;
 
 					try {
@@ -76,7 +75,7 @@ public class LamportMutex {
 						lamportSockets[ii] = sock;
 						lamportWriters[ii] = new PrintWriter(sock.getOutputStream());
 						lamportReaders[ii] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-						System.out.println("Connection made from " + ii);
+						server.log.log(Level.FINER, "Lamport connection made to server "+ii);
 						listenerLoop(ii);
 					} catch (IOException e) {
 						e.printStackTrace();
@@ -86,6 +85,7 @@ public class LamportMutex {
 
 			Thread t = new Thread(r);
 			lamportThreads[i] = t;
+			server.log.log(Level.FINEST, "Starting Lamport thread "+ii);
 			t.start();
 		}
 	}
@@ -95,13 +95,13 @@ public class LamportMutex {
 		try {
 			String msg = "";
 			while( (msg = lamportReaders[otherServerID].readLine()) != null){
-				System.out.println("Received string " + msg + " from server " + otherServerID);
+				server.log.log(Level.FINEST, "Received string " + msg + " from server " + otherServerID);
 				// process message based on type
 				receiveMessage(msg);
 			}
 			
 			// might want this to throw an exception so thread can go back to listeneing
-			System.out.println("Uh oh! Lost connection with server " + otherServerID);
+			server.log.log(Level.WARNING, "Uh oh! Lost connection with server " + otherServerID);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -109,14 +109,17 @@ public class LamportMutex {
 	
 	
 	private void sendMessage(int otherServerID, String message) {
+		server.log.log(Level.FINEST, "Sending message " + message + " to server " + otherServerID);
 		lamportWriters[otherServerID].println(message);
 		
 		// increment clock
 		clock.increment();
+		server.log.log(Level.FINEST, "Incrementing Lamport clock = " + clock.value());
 	}
 
 	private void broadcastMessage(String msg) {
 
+		server.log.log(Level.FINER, "Broadcasting message " + msg + " to all servers");
 		for (int i = 0; i < servers.size(); i++) {
 			if (i == serverID)
 				continue;
@@ -134,13 +137,18 @@ public class LamportMutex {
 		// deserialize into LamportMessage object
 		LamportMessage lm = LamportMessage.fromString(msg);
 		
+		server.log.log(Level.FINER, "Received message " + msg);
+		
 		// behavior determined by message type
 		if(lm.type == LamportMessageType.CS_REQUEST){
+			server.log.log(Level.FINEST, "Processing REQUEST message");
 			Q.add(lm);	// add his timestamp or our timestamp?
 			sendMessage(lm.serverID, LamportMessage.ACK(serverID).toString());
 		} else if(lm.type == LamportMessageType.CS_ACK){
+			server.log.log(Level.FINEST, "Processing ACK message");
 			numACKs++;
 		} else if(lm.type == LamportMessageType.CS_RELEASE){
+			server.log.log(Level.FINEST, "Processing RELEASE message");
 			// remove their entry from the Q
 			Q.remove();
 			
@@ -152,6 +160,7 @@ public class LamportMutex {
 
 	
 	public void releaseCS(String data) {
+		server.log.log(Level.FINE, "Releasing CS");
 		LamportMessage lm = LamportMessage.RELEASE(serverID, data);
 		broadcastMessage(lm.toString());
 		Q.remove();
@@ -159,11 +168,12 @@ public class LamportMutex {
 
 	// this is the request made by a server to enter the CS
 	public void requestCriticalSection() {
-		
+		server.log.log(Level.FINE, "Requesting CS");
 		numACKs = 0;
 		LamportMessage lm = LamportMessage.REQUEST(serverID, clock);
 		
 		// enter (timestamp, serverID) of request in Q
+		server.log.log(Level.FINEST, "Adding message to Q");
 		Q.add(lm);
 		
 		// send request to N-1 other servers
@@ -177,6 +187,7 @@ public class LamportMutex {
 				e.printStackTrace();
 			}
 		}
+		server.log.log(Level.FINE, "Entering CS...");
 		
 	}
 

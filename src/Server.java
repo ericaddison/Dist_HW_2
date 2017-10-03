@@ -13,7 +13,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
+import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
@@ -32,31 +34,41 @@ public class Server {
 	private List<InetAddress> servers;
 	private List<Integer> ports;
 	private LamportMutex mutex;
-	private final Logger log = Logger.getLogger(Server.class.getCanonicalName());
-
+	protected final Logger log = Logger.getLogger(this.getClass().getCanonicalName());
+	private Level logLevel = Level.ALL;
+	
 	public Server(String fileName) {
 		super();
-
 		parseServerFile(fileName);
 		seatAssignments = new ArrayList<>(nSeats);
 		for (int i = 0; i < nSeats; i++)
 			seatAssignments.add("");
 
-		mutex = new LamportMutex(servers, ports, this);
+		log.getParent().removeHandler(log.getParent().getHandlers()[0]);
 		
 		try {
 			FileHandler fh = new FileHandler("server_log_" + System.currentTimeMillis() + ".log");
 			fh.setFormatter(new SimpleFormatter());
+			fh.setLevel(logLevel);
 			log.addHandler(fh);
-			logInfo("Server initializing...");
-			logInfo("ServerID = " + serverID);
-			logInfo("nServers = " + nServers);
-			logInfo("nSeats = " + nSeats);
-			logInfo("my tcp port = " + tcpPort);
+			
+			ConsoleHandler ch = new ConsoleHandler();
+			ch.setLevel(logLevel);
+			log.addHandler(ch);
+			log.setLevel(logLevel);
+			
+			log.finest("TEST TESTS");
+			
+			log.info("Server initializing...");
+			log.info("ServerID = " + serverID);
+			log.info("nServers = " + nServers);
+			log.info("nSeats = " + nSeats);
+			log.info("my tcp port = " + tcpPort);
 			for (int i = 0; i < nServers; i++)
-				logInfo("Server " + i + ": " + servers.get(i) + ":" + ports.get(i));
-			logInfo("Server init complete");
-			logInfo("--------------------------------");
+				log.info("Server " + i + ": " + servers.get(i) + ":" + ports.get(i));
+			log.info("Server init complete");
+			log.info("--------------------------------");
+			mutex = new LamportMutex(servers, ports, this);
 		} catch (SecurityException | IOException e) {
 			e.printStackTrace();
 		}
@@ -97,14 +109,6 @@ public class Server {
 		}
 	}
 
-	public synchronized void logInfo(String mesg) {
-		log.log(Level.INFO, mesg);
-	}
-
-	public synchronized void logWarn(String mesg) {
-		log.log(Level.WARNING, mesg);
-	}
-
 	/**
 	 * Run the server. Creates an new thread running the UDP listener, and new
 	 * threads for each incoming TCP connection.
@@ -112,18 +116,18 @@ public class Server {
 	public void run() {
 
 		// listen for incoming TCP requests
-		logInfo("Starting TCP listen loop");
+		log.info("Starting TCP listen loop");
 		try (ServerSocket serverSocket = new ServerSocket(tcpPort);) {
 			while (true) {
 				Socket clientSocket = serverSocket.accept();
-				logInfo("Accepted TCP connection from " + clientSocket.getInetAddress() + " on port "
+				log.info("Accepted TCP connection from " + clientSocket.getInetAddress() + " on port "
 						+ clientSocket.getLocalPort());
 				Thread t = new Thread(new TcpServerTask(this, clientSocket));
 				t.start();
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
-			logWarn("ERROR in TCP loop: " + e.getMessage());
+			log.warning("ERROR in TCP loop: " + e.getMessage());
 		}
 
 	}
