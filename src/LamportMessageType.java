@@ -1,4 +1,4 @@
 
 public enum LamportMessageType {
-	CS_REQUEST, CS_ACK, CS_RELEASE;
+	INIT_REQUEST, INIT_RESPOND, CS_REQUEST, CS_ACK, CS_RELEASE;
 }

@@ -89,6 +89,10 @@ public class Server {
 		log.fine("Received new data: " + seatAssignments.toString());
 	}
 	
+	protected String getSerializedData(){
+		return serializeData();
+	}
+	
 	private void parseServerFile(String fileName) {
 		try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))) {
 

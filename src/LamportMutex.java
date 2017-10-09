@@ -2,10 +2,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.logging.Level;
@@ -27,6 +29,7 @@ public class LamportMutex {
 	private PriorityBlockingQueue<LamportMessage> Q;
 	private int numACKs;
 	private ServerSocket serverSocket;
+	private Thread connectThread;
 
 	public LamportMutex(List<InetAddress> servers, List<Integer> ports, Server server) {
 		this.servers = servers;
@@ -48,71 +51,151 @@ public class LamportMutex {
 		}
 		
 		server.log.log(Level.INFO, "Lamport Mutex initating connections");
-		// create other connections
-		for (int i = 0; i < nServers; i++) {
-			if (i == serverID)
+		
+		// start eternal socket acceptance loop
+		connectThread = new Thread(new Runnable(){
+
+			@Override
+			public void run() {
+				connectionLoop();
+			}
+			
+		});
+		connectThread.start();
+		// create other initial connections
+		int iServer = -1;
+		List<Integer> connectedServers = new ArrayList<>();
+		while(connectedServers.size() < serverID) {
+			iServer = (iServer+1)%serverID;
+			if (connectedServers.contains(iServer))
 				continue; // this socket and thread will be null
 
 			try {
-
+				
 				Socket sock;
-				if (serverID < i) { // act as the "server" for this
-										// pair
-					// TODO: resource leak???
-					server.log.log(Level.FINER, "Listenining for connection on port "+ (ports.get(serverID)+1));
-					sock = serverSocket.accept();
-				} else { // act as the "client" for this pair
-
+				if (iServer < serverID) {
 					sock = new Socket();
-					sock.connect(new InetSocketAddress(servers.get(i), ports.get(i) + 1), Client.TIMEOUT);
-					// TODO: Deal with fault tolerance here
-					/*
-					 * } catch (ConnectException e) { try {
-					 * Thread.sleep(1000); // if could not connect, //
-					 * wait 1 second and try // again } catch
-					 * (InterruptedException e1) { }
-					 */
+					try{
+						sock.connect(new InetSocketAddress(servers.get(iServer), ports.get(iServer) + 1), Client.TIMEOUT);
+						connectedServers.add(iServer);
+					} catch (ConnectException e) {
+						// could not connect. Wait 1/2 second and move on
+						try {
+							Thread.sleep(500);
+						} catch (InterruptedException e1) {}
+						server.log.log(Level.FINER, "Lamport connection NOT made to server "+iServer);
+						continue;
+					}
+					lamportSockets[iServer] = sock;
+					lamportWriters[iServer] = new PrintWriter(sock.getOutputStream());
+					lamportReaders[iServer] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+					
+					// write out init message
+					LamportMessage lminit = LamportMessage.INIT_REQUEST(serverID ,clock);
+					sendMessage(iServer, lminit.toString());
+					
+					// read back data
+					LamportMessage lmresp = receiveMessage(lamportReaders[iServer]);
+					if(lmresp.type!=LamportMessageType.INIT_RESPOND){
+						sock.close();
+						connectedServers.remove(iServer);
+						continue;
+					}
+					server.syncData(lmresp.data);
+					server.log.log(Level.FINER, "Lamport connection made to server "+iServer);
+					
+					final int ii = iServer;
+					Thread t = new Thread(new Runnable() {
+
+						@Override
+						public void run() {
+							listenerLoop(ii);
+						}
+					});
+					lamportThreads[iServer] = t;
+					server.log.log(Level.FINEST, "Starting Lamport thread "+iServer);
+					t.start();
 				}
-				lamportSockets[i] = sock;
-				lamportWriters[i] = new PrintWriter(sock.getOutputStream());
-				lamportReaders[i] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-				server.log.log(Level.FINER, "Lamport connection made to server "+i);
 				
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
-			
-			final int ii = i;
-			Runnable r = new Runnable() {
-
-				@Override
-				public void run() {
-					listenerLoop(ii);
-				}
-			};
-
-			Thread t = new Thread(r);
-			lamportThreads[i] = t;
-			server.log.log(Level.FINEST, "Starting Lamport thread "+i);
-			t.start();
 		}
 	}
 
 	
-	void listenerLoop(int otherServerID){
-		try {
-			String msg = "";
-			server.log.finer("Entering listener loop for server " + otherServerID);
-			while( (msg = lamportReaders[otherServerID].readLine()) != null){
-				server.log.log(Level.FINEST, "Received string " + msg + " from server " + otherServerID);
-				// process message based on type
-				receiveMessage(msg);
+	void connectionLoop(){
+		
+		while(true){
+			server.log.log(Level.FINER, "Listenining for connection on port "+ (ports.get(serverID)+1));
+			try {
+				
+				// set up connection from unknown server
+				Socket sock = serverSocket.accept();
+				PrintWriter pw = new PrintWriter(sock.getOutputStream());
+				BufferedReader br = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+				
+				// listen for INIT message from unknown server
+				String msg = br.readLine();
+				LamportMessage lm = LamportMessage.fromString(msg);
+				
+				// invalid message ... break connection
+				if(lm==null || lm.type!=LamportMessageType.INIT_REQUEST){
+					sock.close();
+					continue;
+				}
+				
+				// get serverID
+				int iServer = lm.serverID; 					
+				
+				if(lamportSockets[iServer] != null){
+					server.log.log(Level.WARNING, "Imposter attempt from server ID "+ iServer);
+					sock.close();
+					continue;
+				}
+				
+				// save readers/writers
+				lamportSockets[iServer] = sock;
+				lamportWriters[iServer] = pw; 
+				lamportReaders[iServer] = br;
+				
+				// respond with current data
+				LamportMessage respond = LamportMessage.INIT_RESPOND(serverID, clock, server.getSerializedData());
+				sendMessage(iServer, respond.toString());
+				
+				// spin off new thread
+				final int ii = iServer;
+				Thread t = new Thread(new Runnable() {
+
+					@Override
+					public void run() {
+						listenerLoop(ii);
+					}
+				});
+				server.log.log(Level.FINEST, "Starting Lamport thread "+iServer);
+				t.start();
+				
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
-			
-			// might want this to throw an exception so thread can go back to listeneing
-			server.log.log(Level.WARNING, "Uh oh! Lost connection with server " + otherServerID);
-		} catch (IOException e) {
-			e.printStackTrace();
+		}
+	}
+	
+	
+	void listenerLoop(int otherServerID){
+		LamportMessage lm = null;
+		server.log.finer("Entering listener loop for server " + otherServerID);
+		try{
+			while( (lm = receiveMessage(lamportReaders[otherServerID])) != null){
+				server.log.log(Level.FINEST, "Received string " + lm.toString() + " from server " + otherServerID);
+				// process message based on type
+				processMessage(lm);
+			}
+		} catch (NullPointerException e){
+			server.log.log(Level.WARNING, "Uh oh! Lost connection with server " + otherServerID + ": clearing comms");
+			lamportSockets[otherServerID] = null;
+			lamportWriters[otherServerID] = null; 
+			lamportReaders[otherServerID] = null;
 		}
 		server.log.finer("Leaving listener loop for server " + otherServerID);
 	}
@@ -126,6 +209,17 @@ public class LamportMutex {
 		// increment clock
 		clock.increment();
 		server.log.log(Level.FINEST, "Incrementing Lamport clock = " + clock.value());
+	}
+
+	
+	private LamportMessage receiveMessage(BufferedReader br){
+		String msg = null;
+		try {
+			msg = br.readLine();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return LamportMessage.fromString(msg);
 	}
 
 	private void broadcastMessage(String msg) {
@@ -142,19 +236,15 @@ public class LamportMutex {
 
 	// TODO: Add print statements for debugging
 	
-	// put this in an infinite listen loop
-	private void receiveMessage(String msg) {
+	private void processMessage(LamportMessage lm) {
 		
-		// deserialize into LamportMessage object
-		LamportMessage lm = LamportMessage.fromString(msg);
-		
-		server.log.log(Level.FINER, "Received message " + msg);
+		server.log.log(Level.FINER, "Received message " + lm.toString());
 		
 		// behavior determined by message type
 		if(lm.type == LamportMessageType.CS_REQUEST){
 			server.log.log(Level.FINEST, "Processing REQUEST message");
 			Q.add(lm);	// add his timestamp or our timestamp?
-			sendMessage(lm.serverID, LamportMessage.ACK(serverID).toString());
+			sendMessage(lm.serverID, LamportMessage.ACK(serverID, clock).toString());
 		} else if(lm.type == LamportMessageType.CS_ACK){
 			server.log.log(Level.FINEST, "Processing ACK message");
 			numACKs++;
@@ -166,6 +256,7 @@ public class LamportMutex {
 			// update server data
 			server.syncData(lm.data);
 		}
+		clock = (clock.value()>lm.clock.value())?clock:lm.clock;
 		clock.increment();
 	}
 
@@ -181,7 +272,7 @@ public class LamportMutex {
 		}
 
 		server.log.log(Level.FINE, "Releasing CS");
-		LamportMessage lm = LamportMessage.RELEASE(serverID, data);
+		LamportMessage lm = LamportMessage.RELEASE(serverID, clock, data);
 		broadcastMessage(lm.toString());
 		Q.remove();
 	}

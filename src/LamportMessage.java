@@ -24,16 +24,24 @@ public class LamportMessage implements Comparable<LamportMessage> {
 		this.data = data;
 	}
 
-	public static LamportMessage ACK(int serverID) {
-		return new LamportMessage(LamportMessageType.CS_ACK, serverID, new LogicalClock(Integer.MIN_VALUE), "NO DATA");
+	public static LamportMessage ACK(int serverID, LogicalClock clock) {
+		return new LamportMessage(LamportMessageType.CS_ACK, serverID, clock, "NO DATA");
 	}
 
-	public static LamportMessage RELEASE(int serverID, String data) {
-		return new LamportMessage(LamportMessageType.CS_RELEASE, serverID, new LogicalClock(Integer.MIN_VALUE), data);
+	public static LamportMessage RELEASE(int serverID, LogicalClock clock, String data) {
+		return new LamportMessage(LamportMessageType.CS_RELEASE, serverID, clock, data);
 	}
 
 	public static LamportMessage REQUEST(int serverID, LogicalClock clock) {
 		return new LamportMessage(LamportMessageType.CS_REQUEST, serverID, clock, "NO DATA");
+	}
+	
+	public static LamportMessage INIT_REQUEST(int serverID, LogicalClock clock) {
+		return new LamportMessage(LamportMessageType.INIT_REQUEST, serverID, clock, "NO DATA");
+	}
+	
+	public static LamportMessage INIT_RESPOND(int serverID, LogicalClock clock, String data) {
+		return new LamportMessage(LamportMessageType.INIT_RESPOND, serverID, clock, data);
 	}
 
 	@Override
