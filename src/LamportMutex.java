@@ -171,6 +171,15 @@ public class LamportMutex {
 
 	
 	public void releaseCS(String data) {
+		server.log.log(Level.FINE, "Sleeping 5 seconds..");
+		// artificial time delay
+		try {
+			Thread.sleep(5000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
 		server.log.log(Level.FINE, "Releasing CS");
 		LamportMessage lm = LamportMessage.RELEASE(serverID, data);
 		broadcastMessage(lm.toString());

@@ -78,8 +78,14 @@ public class Server {
 	}
 	
 	protected void syncData(String newData){
-		String[] toks = newData.split(", ");
-		seatAssignments = Arrays.asList(toks);
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			TypeReference<ArrayList<String>> typeRef = new TypeReference<ArrayList<String>>() {
+			};
+			seatAssignments = mapper.readValue(newData, typeRef);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		log.fine("Received new data: " + seatAssignments.toString());
 	}
 	
