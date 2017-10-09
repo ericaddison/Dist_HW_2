@@ -26,6 +26,7 @@ public class LamportMutex {
 	private Server server;
 	private PriorityBlockingQueue<LamportMessage> Q;
 	private int numACKs;
+	private ServerSocket serverSocket;
 
 	public LamportMutex(List<InetAddress> servers, List<Integer> ports, Server server) {
 		this.servers = servers;
@@ -40,52 +41,59 @@ public class LamportMutex {
 		lamportWriters = new PrintWriter[nServers];
 		lamportReaders = new BufferedReader[nServers];
 
+		try {
+			serverSocket = new ServerSocket(ports.get(serverID)+1);
+		} catch (IOException e1) {
+			e1.printStackTrace();
+		}
+		
 		server.log.log(Level.INFO, "Lamport Mutex initating connections");
 		// create other connections
 		for (int i = 0; i < nServers; i++) {
 			if (i == serverID)
 				continue; // this socket and thread will be null
 
+			try {
+
+				Socket sock;
+				if (serverID < i) { // act as the "server" for this
+										// pair
+					// TODO: resource leak???
+					server.log.log(Level.FINER, "Listenining for connection on port "+ (ports.get(serverID)+1));
+					sock = serverSocket.accept();
+				} else { // act as the "client" for this pair
+
+					sock = new Socket();
+					sock.connect(new InetSocketAddress(servers.get(i), ports.get(i) + 1), Client.TIMEOUT);
+					// TODO: Deal with fault tolerance here
+					/*
+					 * } catch (ConnectException e) { try {
+					 * Thread.sleep(1000); // if could not connect, //
+					 * wait 1 second and try // again } catch
+					 * (InterruptedException e1) { }
+					 */
+				}
+				lamportSockets[i] = sock;
+				lamportWriters[i] = new PrintWriter(sock.getOutputStream());
+				lamportReaders[i] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+				server.log.log(Level.FINER, "Lamport connection made to server "+i);
+				
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
 			final int ii = i;
 			Runnable r = new Runnable() {
 
 				@Override
 				public void run() {
-					Socket sock = null;
-
-					try {
-
-						if (serverID < ii) { // act as the "server" for this
-												// pair
-							// TODO: resource leak???
-							ServerSocket serverSocket = new ServerSocket(ports.get(serverID) + 1);
-							sock = serverSocket.accept();
-						} else { // act as the "client" for this pair
-
-							sock = new Socket();
-							sock.connect(new InetSocketAddress(servers.get(ii), ports.get(ii) + 1), Client.TIMEOUT);
-							// TODO: Deal with fault tolerance here
-							/*
-							 * } catch (ConnectException e) { try {
-							 * Thread.sleep(1000); // if could not connect, //
-							 * wait 1 second and try // again } catch
-							 * (InterruptedException e1) { }
-							 */
-						}
-						lamportSockets[ii] = sock;
-						lamportWriters[ii] = new PrintWriter(sock.getOutputStream());
-						lamportReaders[ii] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-						server.log.log(Level.FINER, "Lamport connection made to server "+ii);
-						listenerLoop(ii);
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
+					listenerLoop(ii);
 				}
 			};
 
 			Thread t = new Thread(r);
 			lamportThreads[i] = t;
-			server.log.log(Level.FINEST, "Starting Lamport thread "+ii);
+			server.log.log(Level.FINEST, "Starting Lamport thread "+i);
 			t.start();
 		}
 	}
@@ -94,6 +102,7 @@ public class LamportMutex {
 	void listenerLoop(int otherServerID){
 		try {
 			String msg = "";
+			server.log.finer("Entering listener loop for server " + otherServerID);
 			while( (msg = lamportReaders[otherServerID].readLine()) != null){
 				server.log.log(Level.FINEST, "Received string " + msg + " from server " + otherServerID);
 				// process message based on type
@@ -105,12 +114,14 @@ public class LamportMutex {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		server.log.finer("Leaving listener loop for server " + otherServerID);
 	}
 	
 	
 	private void sendMessage(int otherServerID, String message) {
 		server.log.log(Level.FINEST, "Sending message " + message + " to server " + otherServerID);
 		lamportWriters[otherServerID].println(message);
+		lamportWriters[otherServerID].flush();
 		
 		// increment clock
 		clock.increment();
@@ -179,8 +190,14 @@ public class LamportMutex {
 		// send request to N-1 other servers
 		broadcastMessage(lm.toString());
 		
-		// wait for N-1 numAcks
-		while(numACKs<nServers-1 && !(Q.peek().serverID==serverID)){
+/*		server.log.finest("numAcks = " + numACKs + " / " + (nServers-1));
+		server.log.finest((numACKs<(nServers-1))+"");
+		server.log.finest((Q.peek().serverID!=serverID)+"");
+		server.log.finest((numACKs<(nServers-1) && Q.peek().serverID!=serverID)+"");
+		server.log.finest("Q = " + Q.peek().serverID);
+*/
+		// wait for N-1 numAcks and to be at front of Q
+		while( numACKs<(nServers-1) || Q.peek().serverID!=serverID){
 			try {
 				Thread.sleep(10);
 			} catch (InterruptedException e) {

@@ -24,15 +24,15 @@ public class TcpServerTask implements Runnable {
 				BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
 			Map<String, String> receivedMap = null;
 			while ((receivedMap = server.receiveRequest(in)) != null) {
-				server.logInfo("Received request map " + receivedMap + " from " + clientSocket.getInetAddress());
+				server.log.info("Received request map " + receivedMap + " from " + clientSocket.getInetAddress());
 				Map<String, String> respMap = server.processRequest(receivedMap);
-				server.logInfo("Sending response map " + respMap + " to " + clientSocket.getInetAddress());
+				server.log.info("Sending response map " + respMap + " to " + clientSocket.getInetAddress());
 				server.sendResponse(respMap, out);
 			}
 			
 			
 		} catch (EOFException e) {
-			server.logWarn("Connection to " + clientSocket.getInetAddress() + " ended unexpectedly.");
+			server.log.warning("Connection to " + clientSocket.getInetAddress() + " ended unexpectedly.");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

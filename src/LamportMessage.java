@@ -33,7 +33,7 @@ public class LamportMessage implements Comparable<LamportMessage> {
 	}
 
 	public static LamportMessage REQUEST(int serverID, LogicalClock clock) {
-		return new LamportMessage(LamportMessageType.CS_RELEASE, serverID, clock, "NO DATA");
+		return new LamportMessage(LamportMessageType.CS_REQUEST, serverID, clock, "NO DATA");
 	}
 
 	@Override

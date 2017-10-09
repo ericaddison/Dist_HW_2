@@ -115,6 +115,7 @@ public class Client {
 				try{
 					tcpSocket = new Socket();
 					tcpSocket.connect(new InetSocketAddress(servers.get(serverNum), ports.get(serverNum)), TIMEOUT);
+					break;
 				} catch (SocketTimeoutException e){
 					System.out.println("Timed out trying to connect to " + servers.get(serverNum) + ":" + ports.get(serverNum));
 				} catch (ConnectException e){
@@ -146,7 +147,7 @@ public class Client {
 
 			// connect TCP by default
 			connectTCP();
-		
+			
 			// main command loop
 			while (sc.hasNextLine()) {
 				String[] tokens = sc.nextLine().split(" ");
@@ -198,7 +199,7 @@ public class Client {
 				sendRequest(reqMap);
 				Map<String, String> response = receiveResponse();
 				String responseString = response.get(MessageFields.MESSAGE.toString());
-				System.out.println(responseString + "\n>>> ");
+				System.out.print(responseString + "\n>>> ");
 
 			}
 

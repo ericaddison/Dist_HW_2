@@ -57,8 +57,6 @@ public class Server {
 			log.addHandler(ch);
 			log.setLevel(logLevel);
 			
-			log.finest("TEST TESTS");
-			
 			log.info("Server initializing...");
 			log.info("ServerID = " + serverID);
 			log.info("nServers = " + nServers);
@@ -82,6 +80,7 @@ public class Server {
 	protected void syncData(String newData){
 		String[] toks = newData.split(", ");
 		seatAssignments = Arrays.asList(toks);
+		log.fine("Received new data: " + seatAssignments.toString());
 	}
 	
 	private void parseServerFile(String fileName) {
@@ -135,6 +134,8 @@ public class Server {
 	public Map<String, String> receiveRequest(BufferedReader in) {
 		try {
 			String recString = in.readLine();
+			if(recString==null)
+				recString = "{}";
 			ObjectMapper mapper = new ObjectMapper();
 			TypeReference<HashMap<String, String>> typeRef = new TypeReference<HashMap<String, String>>() {
 			};
