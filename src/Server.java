@@ -37,7 +37,7 @@ public class Server {
 	protected final Logger log = Logger.getLogger(this.getClass().getCanonicalName());
 	private Level logLevel = Level.ALL;
 	
-	public Server(String fileName) {
+	public Server(String fileName, boolean restart) {
 		super();
 		parseServerFile(fileName);
 		seatAssignments = new ArrayList<>(nSeats);
@@ -66,7 +66,7 @@ public class Server {
 				log.info("Server " + i + ": " + servers.get(i) + ":" + ports.get(i));
 			log.info("Server init complete");
 			log.info("--------------------------------");
-			mutex = new LamportMutex(servers, ports, this);
+			mutex = new LamportMutex(servers, ports, this, restart);
 		} catch (SecurityException | IOException e) {
 			e.printStackTrace();
 		}
@@ -184,6 +184,7 @@ public class Server {
 		Requests requestType = null;
 		
 		try{
+			System.out.println(receivedMap.get(MessageFields.REQUEST.toString()));
 			requestType = Requests.valueOf(receivedMap.get(MessageFields.REQUEST.toString()));
 			String name = receivedMap.get(MessageFields.NAME.toString());
 			int reservedSeat = seatAssignments.indexOf(name);
@@ -269,13 +270,19 @@ public class Server {
 	 *            command line input. Expects [tcpPort] [inventory file]
 	 */
 	public static void main(String[] args) {
-		if (args.length != 1) {
-			System.out.println("ERROR: Provide 1 argument");
+		if (args.length < 1 || args.length > 2) {
+			System.out.println("ERROR: Provide 1 or 2 arguments");
 			System.out.println("\t(1) <file>: the file of inventory");
+			System.out.println("\t(2) <restart>: optional flag to restart failed server");
 			System.exit(-1);
 		}
 
 		String fileName = args[0];
+		
+		boolean restart = false;
+		if(args.length==2 && args[1].equals("restart"))
+			restart = true;
+		
 		try {
 			File file = new File(fileName);
 			if (!file.exists() || file.isDirectory())
@@ -285,7 +292,7 @@ public class Server {
 			System.exit(-1);
 		}
 
-		Server server = new Server(fileName);
+		Server server = new Server(fileName, restart);
 		server.run();
 	}
 

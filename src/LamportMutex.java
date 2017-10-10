@@ -14,6 +14,8 @@ import java.util.logging.Level;
 
 public class LamportMutex {
 
+	private static final int MAX_SERVERS = 10;
+	
 	private List<InetAddress> servers;
 	private List<Integer> ports;
 	private LogicalClock clock;
@@ -31,18 +33,18 @@ public class LamportMutex {
 	private ServerSocket serverSocket;
 	private Thread connectThread;
 
-	public LamportMutex(List<InetAddress> servers, List<Integer> ports, Server server) {
+	public LamportMutex(List<InetAddress> servers, List<Integer> ports, Server server, boolean restart) {
 		this.servers = servers;
 		this.ports = ports;
 		this.server = server;
 		this.serverID = server.getID();
-		nServers = servers.size();
+		nServers = 1;
 		Q = new PriorityBlockingQueue<>();
 		clock = new LogicalClock(0);
-		lamportThreads = new Thread[nServers];
-		lamportSockets = new Socket[nServers];
-		lamportWriters = new PrintWriter[nServers];
-		lamportReaders = new BufferedReader[nServers];
+		lamportThreads = new Thread[MAX_SERVERS];
+		lamportSockets = new Socket[MAX_SERVERS];
+		lamportWriters = new PrintWriter[MAX_SERVERS];
+		lamportReaders = new BufferedReader[MAX_SERVERS];
 
 		try {
 			serverSocket = new ServerSocket(ports.get(serverID)+1);
@@ -65,8 +67,10 @@ public class LamportMutex {
 		// create other initial connections
 		int iServer = -1;
 		List<Integer> connectedServers = new ArrayList<>();
-		while(connectedServers.size() < serverID) {
-			iServer = (iServer+1)%serverID;
+		int nLoops = restart ? (servers.size()-1) : serverID;
+		
+		while(connectedServers.size() < nLoops) {
+			iServer = (iServer+1) % (restart?nLoops:serverID);
 			if (connectedServers.contains(iServer))
 				continue; // this socket and thread will be null
 
@@ -89,6 +93,7 @@ public class LamportMutex {
 					lamportSockets[iServer] = sock;
 					lamportWriters[iServer] = new PrintWriter(sock.getOutputStream());
 					lamportReaders[iServer] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+					incrementNumServers();
 					
 					// write out init message
 					LamportMessage lminit = LamportMessage.INIT_REQUEST(serverID ,clock);
@@ -158,6 +163,7 @@ public class LamportMutex {
 				lamportSockets[iServer] = sock;
 				lamportWriters[iServer] = pw; 
 				lamportReaders[iServer] = br;
+				incrementNumServers();
 				
 				// respond with current data
 				LamportMessage respond = LamportMessage.INIT_RESPOND(serverID, clock, server.getSerializedData());
@@ -196,19 +202,29 @@ public class LamportMutex {
 			lamportSockets[otherServerID] = null;
 			lamportWriters[otherServerID] = null; 
 			lamportReaders[otherServerID] = null;
+			decrementNumServers();
 		}
 		server.log.finer("Leaving listener loop for server " + otherServerID);
 	}
 	
+	private synchronized void decrementNumServers(){
+		nServers--;
+	}
+
+	private synchronized void incrementNumServers(){
+		nServers++;
+	}
 	
 	private void sendMessage(int otherServerID, String message) {
-		server.log.log(Level.FINEST, "Sending message " + message + " to server " + otherServerID);
-		lamportWriters[otherServerID].println(message);
-		lamportWriters[otherServerID].flush();
-		
-		// increment clock
-		clock.increment();
-		server.log.log(Level.FINEST, "Incrementing Lamport clock = " + clock.value());
+		if( lamportSockets[otherServerID] != null){
+			server.log.log(Level.FINEST, "Sending message " + message + " to server " + otherServerID);
+			lamportWriters[otherServerID].println(message);
+			lamportWriters[otherServerID].flush();
+			
+			// increment clock
+			clock.increment();
+			server.log.log(Level.FINEST, "Incrementing Lamport clock = " + clock.value());
+		}
 	}
 
 	

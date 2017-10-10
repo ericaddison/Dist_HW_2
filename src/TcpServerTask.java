@@ -26,8 +26,10 @@ public class TcpServerTask implements Runnable {
 			while ((receivedMap = server.receiveRequest(in)) != null) {
 				server.log.info("Received request map " + receivedMap + " from " + clientSocket.getInetAddress());
 				Map<String, String> respMap = server.processRequest(receivedMap);
-				server.log.info("Sending response map " + respMap + " to " + clientSocket.getInetAddress());
-				server.sendResponse(respMap, out);
+				if(respMap!=null){
+					server.log.info("Sending response map " + respMap + " to " + clientSocket.getInetAddress());
+					server.sendResponse(respMap, out);
+				}
 			}
 			
 			
