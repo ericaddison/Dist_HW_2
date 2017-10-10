@@ -74,7 +74,6 @@ public class Client {
 	 *            the object to send
 	 */
 	public void sendRequest(Map<String, String> reqMap) {
-		System.out.println("Sending request: " + reqMap);
 		ObjectMapper mapper = new ObjectMapper();
 		try {
 			String jsonRequest = mapper.writer().writeValueAsString(reqMap);
@@ -121,17 +120,14 @@ public class Client {
 					break;
 				} catch (SocketTimeoutException e){
 					System.out.println("Timed out trying to connect to " + servers.get(serverNum) + ":" + ports.get(serverNum));
-				} catch (ConnectException e){
-					System.out.println("Connection refused from " + servers.get(serverNum) + ":" + ports.get(serverNum));
-				}
+				} catch (ConnectException e){}
 				
 				if(serverNum==(nServers-1))
-					throw new SocketTimeoutException("Failed to connect to any server: please try again later!");
+					throw new SocketTimeoutException("Failed to connect to any server: please try again later!\n\n");
 			}
 			
 			out = new PrintWriter(tcpSocket.getOutputStream());
 			in = new BufferedReader(new InputStreamReader(tcpSocket.getInputStream()));
-			System.out.println("Connected to server " + tcpSocket.getInetAddress() + ":" + tcpSocket.getPort());
 		} catch (SocketTimeoutException e){
 			throw e;
 		} catch (IOException e) {
@@ -205,7 +201,6 @@ public class Client {
 				
 				// if connection to server failed, try to reconnect
 				if( response==null ){
-					System.out.println("Received null response, attempting to reconnect");
 					connectTCP();
 					sendRequest(reqMap);
 					response = receiveResponse();
@@ -218,11 +213,10 @@ public class Client {
 			}
 
 		} catch (Exception e){
-			System.out.println("ERROR! " + e.getMessage());
 			e.printStackTrace();
 		}
 
-		System.out.println("Leaving run()");
+		System.out.println("Good Bye!");
 		
 	}
 

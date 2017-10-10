@@ -67,65 +67,72 @@ public class LamportMutex {
 		// create other initial connections
 		int iServer = -1;
 		List<Integer> connectedServers = new ArrayList<>();
-		int nLoops = restart ? (servers.size()-1) : serverID;
+		connectedServers.add(serverID);
 		
-		while(connectedServers.size() < nLoops) {
-			iServer = (iServer+1) % (restart?nLoops:serverID);
+		// if restarting, start by assuming that you must connect to all other servers
+		// this will be updated after connecting to one live server
+		// otherwise, on a fresh startup, connect to all servers with serverID less than yours 
+		int nConnections = restart ? (servers.size()) : serverID+1;
+		
+		while(connectedServers.size() < nConnections) {
+			iServer = (iServer+1) % (restart?nConnections:serverID);
 			if (connectedServers.contains(iServer))
 				continue; // this socket and thread will be null
 
 			try {
-				
-				Socket sock;
-				if (iServer < serverID) {
-					sock = new Socket();
-					try{
-						sock.connect(new InetSocketAddress(servers.get(iServer), ports.get(iServer) + 1), Client.TIMEOUT);
-						connectedServers.add(iServer);
-					} catch (ConnectException e) {
-						// could not connect. Wait 1/2 second and move on
-						try {
-							Thread.sleep(500);
-						} catch (InterruptedException e1) {}
-						server.log.log(Level.FINER, "Lamport connection NOT made to server "+iServer);
-						continue;
-					}
-					lamportSockets[iServer] = sock;
-					lamportWriters[iServer] = new PrintWriter(sock.getOutputStream());
-					lamportReaders[iServer] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
-					incrementNumServers();
-					
-					// write out init message
-					LamportMessage lminit = LamportMessage.INIT_REQUEST(serverID ,clock);
-					sendMessage(iServer, lminit.toString());
-					
-					// read back data
-					LamportMessage lmresp = receiveMessage(lamportReaders[iServer]);
-					if(lmresp.type!=LamportMessageType.INIT_RESPOND){
-						sock.close();
-						connectedServers.remove(iServer);
-						continue;
-					}
-					server.syncData(lmresp.data);
-					server.log.log(Level.FINER, "Lamport connection made to server "+iServer);
-					
-					final int ii = iServer;
-					Thread t = new Thread(new Runnable() {
-
-						@Override
-						public void run() {
-							listenerLoop(ii);
-						}
-					});
-					lamportThreads[iServer] = t;
-					server.log.log(Level.FINEST, "Starting Lamport thread "+iServer);
-					t.start();
+				server.log.fine("Entering connect loop for iServer = " + iServer);
+				Socket sock = new Socket();
+				try{
+					sock.connect(new InetSocketAddress(servers.get(iServer), ports.get(iServer) + 1), Client.TIMEOUT);
+					connectedServers.add(iServer);
+				} catch (ConnectException e) {
+					// could not connect. Wait 1/2 second and move on
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e1) {}
+					server.log.log(Level.FINER, "Lamport connection NOT made to server "+iServer);
+					continue;
 				}
+				lamportSockets[iServer] = sock;
+				lamportWriters[iServer] = new PrintWriter(sock.getOutputStream());
+				lamportReaders[iServer] = new BufferedReader(new InputStreamReader(sock.getInputStream()));
+				incrementNumServers();
+				
+				// write out init message
+				LamportMessage lminit = LamportMessage.INIT_REQUEST(serverID ,clock);
+				sendMessage(iServer, lminit.toString());
+				
+				// read back data
+				LamportMessage lmresp = receiveMessage(lamportReaders[iServer]);
+				if(lmresp.type!=LamportMessageType.INIT_RESPOND){
+					sock.close();
+					connectedServers.remove(iServer);
+					continue;
+				}
+				System.out.println("Received message " + lmresp);
+				server.syncData(lmresp.data);
+				
+				// update number of servers to connect to, if restarting
+				nConnections = restart ? lmresp.nServers : nConnections;
+				server.log.log(Level.FINER, "Lamport connection made to server "+iServer);
+				
+				final int ii = iServer;
+				Thread t = new Thread(new Runnable() {
+
+					@Override
+					public void run() {
+						listenerLoop(ii);
+					}
+				});
+				lamportThreads[iServer] = t;
+				server.log.log(Level.FINEST, "Starting Lamport thread "+iServer);
+				t.start();
 				
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
+		server.log.fine("Finished in ctor connection loop");
 	}
 
 	
@@ -164,9 +171,10 @@ public class LamportMutex {
 				lamportWriters[iServer] = pw; 
 				lamportReaders[iServer] = br;
 				incrementNumServers();
-				
+
 				// respond with current data
-				LamportMessage respond = LamportMessage.INIT_RESPOND(serverID, clock, server.getSerializedData());
+				// and current number of servers
+				LamportMessage respond = LamportMessage.INIT_RESPOND(serverID, nServers, clock, server.getSerializedData());
 				sendMessage(iServer, respond.toString());
 				
 				// spin off new thread
@@ -209,10 +217,12 @@ public class LamportMutex {
 	
 	private synchronized void decrementNumServers(){
 		nServers--;
+		server.log.fine("Decrementing nServers: " + nServers);
 	}
 
 	private synchronized void incrementNumServers(){
 		nServers++;
+		server.log.fine("Incrementing nServers: " + nServers);
 	}
 	
 	private void sendMessage(int otherServerID, String message) {
@@ -278,15 +288,6 @@ public class LamportMutex {
 
 	
 	public void releaseCS(String data) {
-		server.log.log(Level.FINE, "Sleeping 5 seconds..");
-		// artificial time delay
-		try {
-			Thread.sleep(5000);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
 		server.log.log(Level.FINE, "Releasing CS");
 		LamportMessage lm = LamportMessage.RELEASE(serverID, clock, data);
 		broadcastMessage(lm.toString());

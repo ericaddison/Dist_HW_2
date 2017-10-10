@@ -36,7 +36,9 @@ public class TcpServerTask implements Runnable {
 		} catch (EOFException e) {
 			server.log.warning("Connection to " + clientSocket.getInetAddress() + " ended unexpectedly.");
 		} catch (IOException e) {
-			e.printStackTrace();
+			server.log.warning("IOException! Client " + clientSocket.getInetAddress() + " probably disconnected...");
+		} catch (NullPointerException e){
+			server.log.warning("NullPointerException! Client " + clientSocket.getInetAddress() + " probably disconnected...");
 		}
 		
 	}

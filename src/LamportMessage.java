@@ -12,36 +12,38 @@ public class LamportMessage implements Comparable<LamportMessage> {
 	int serverID;
 	LogicalClock clock;
 	String data;
+	int nServers;
 
 	private LamportMessage(){
 		
 	}
 	
-	private LamportMessage(LamportMessageType type, int serverID, LogicalClock clock, String data) {
+	private LamportMessage(LamportMessageType type, int serverID, int nServers, LogicalClock clock, String data) {
 		this.type = type;
 		this.serverID = serverID;
 		this.clock = clock;
 		this.data = data;
+		this.nServers = nServers;
 	}
 
 	public static LamportMessage ACK(int serverID, LogicalClock clock) {
-		return new LamportMessage(LamportMessageType.CS_ACK, serverID, clock, "NO DATA");
+		return new LamportMessage(LamportMessageType.CS_ACK, serverID, -1, clock, "NO DATA");
 	}
 
 	public static LamportMessage RELEASE(int serverID, LogicalClock clock, String data) {
-		return new LamportMessage(LamportMessageType.CS_RELEASE, serverID, clock, data);
+		return new LamportMessage(LamportMessageType.CS_RELEASE, serverID, -1, clock, data);
 	}
 
 	public static LamportMessage REQUEST(int serverID, LogicalClock clock) {
-		return new LamportMessage(LamportMessageType.CS_REQUEST, serverID, clock, "NO DATA");
+		return new LamportMessage(LamportMessageType.CS_REQUEST, serverID, -1, clock, "NO DATA");
 	}
 	
 	public static LamportMessage INIT_REQUEST(int serverID, LogicalClock clock) {
-		return new LamportMessage(LamportMessageType.INIT_REQUEST, serverID, clock, "NO DATA");
+		return new LamportMessage(LamportMessageType.INIT_REQUEST, serverID, -1, clock, "NO DATA");
 	}
 	
-	public static LamportMessage INIT_RESPOND(int serverID, LogicalClock clock, String data) {
-		return new LamportMessage(LamportMessageType.INIT_RESPOND, serverID, clock, data);
+	public static LamportMessage INIT_RESPOND(int serverID, int nServers, LogicalClock clock, String data) {
+		return new LamportMessage(LamportMessageType.INIT_RESPOND, serverID, nServers, clock, data);
 	}
 
 	@Override
@@ -63,6 +65,7 @@ public class LamportMessage implements Comparable<LamportMessage> {
 		map.put("serverID", "" + serverID);
 		map.put("clock", "" + clock.value());
 		map.put("data", data);
+		map.put("nServers", ""+nServers);
 
 		ObjectMapper mapper = new ObjectMapper();
 		try {
@@ -86,6 +89,7 @@ public class LamportMessage implements Comparable<LamportMessage> {
 			lm.type = LamportMessageType.valueOf(map.get("type"));
 			lm.serverID = Integer.parseInt(map.get("serverID"));
 			lm.data = map.get("data");
+			lm.nServers = Integer.parseInt(map.get("nServers"));
 			return lm;
 		} catch (IOException e) {
 			e.printStackTrace();

@@ -184,7 +184,6 @@ public class Server {
 		Requests requestType = null;
 		
 		try{
-			System.out.println(receivedMap.get(MessageFields.REQUEST.toString()));
 			requestType = Requests.valueOf(receivedMap.get(MessageFields.REQUEST.toString()));
 			String name = receivedMap.get(MessageFields.NAME.toString());
 			int reservedSeat = seatAssignments.indexOf(name);
@@ -282,7 +281,7 @@ public class Server {
 		boolean restart = false;
 		if(args.length==2 && args[1].equals("restart"))
 			restart = true;
-		
+
 		try {
 			File file = new File(fileName);
 			if (!file.exists() || file.isDirectory())
