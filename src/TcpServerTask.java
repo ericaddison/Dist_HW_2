@@ -7,9 +7,16 @@ import java.net.Socket;
 import java.util.Map;
 
 public class TcpServerTask implements Runnable {
-
-	Socket clientSocket;
-	Server server;
+//****************************************************************
+//	Fields
+//****************************************************************	
+	private Socket clientSocket;
+	private Server server;
+	
+	
+//****************************************************************
+//	Public Methods
+//****************************************************************	
 
 	public TcpServerTask(Server server, Socket clientSocket) {
 		super();
@@ -17,6 +24,7 @@ public class TcpServerTask implements Runnable {
 		this.clientSocket = clientSocket;
 	}
 
+	
 	@Override
 	public void run() {
 		
@@ -33,7 +41,6 @@ public class TcpServerTask implements Runnable {
 					server.sendResponse(respMap, out);
 				}
 			}
-			
 			
 		} catch (EOFException e) {
 			server.log.warning("Connection to " + clientSocket.getInetAddress() + " ended unexpectedly.");

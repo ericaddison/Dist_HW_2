@@ -24,6 +24,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Server {
 
+//****************************************************************
+//	Fields
+//****************************************************************
+	
+	protected final Logger log = Logger.getLogger(this.getClass().getCanonicalName());
+	
 	private int tcpPort;
 	private int serverID;
 	private int nServers;
@@ -32,8 +38,12 @@ public class Server {
 	private List<InetAddress> servers;
 	private List<Integer> ports;
 	private LamportMutex mutex;
-	protected final Logger log = Logger.getLogger(this.getClass().getCanonicalName());
 	private Level logLevel = Level.ALL;
+	
+	
+//****************************************************************
+//	Public methods
+//****************************************************************
 	
 	public Server(String fileName, boolean restart) {
 		super();
@@ -65,6 +75,7 @@ public class Server {
 			log.info("Server init complete");
 			log.info("--------------------------------");
 			mutex = new LamportMutex(servers, ports, this, restart);
+			mutex.init();
 		} catch (SecurityException | IOException e) {
 			e.printStackTrace();
 		}
@@ -74,51 +85,10 @@ public class Server {
 	public int getID(){
 		return serverID;
 	}
+
 	
-	protected void syncData(String newData){
-		try {
-			ObjectMapper mapper = new ObjectMapper();
-			TypeReference<ArrayList<String>> typeRef = new TypeReference<ArrayList<String>>() {
-			};
-			seatAssignments = mapper.readValue(newData, typeRef);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		log.fine("Received new data: " + seatAssignments.toString());
-	}
-	
-	protected String getSerializedData(){
-		return serializeData();
-	}
-	
-	private void parseServerFile(String fileName) {
-		try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))) {
-
-			// line 1 = serverID nServers nSeats
-			String[] toks = br.readLine().split(" ");
-			serverID = Integer.parseInt(toks[0])-1;
-			nServers = Integer.parseInt(toks[1]);
-			nSeats = Integer.parseInt(toks[2]);
-
-			// remaining lines = server locations
-			String nextServer = "";
-			servers = new ArrayList<>(nServers);
-			ports = new ArrayList<>(nServers);
-			while ((nextServer = br.readLine()) != null) {
-				String[] serverToks = nextServer.split(":");
-				servers.add(InetAddress.getByName(serverToks[0]));
-				ports.add(Integer.parseInt(serverToks[1]));
-			}
-			tcpPort = ports.get(serverID);
-
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
 	/**
-	 * Run the server. Creates an new thread running the UDP listener, and new
-	 * threads for each incoming TCP connection.
+	 * Run the server. Creates a new TcpServerTask thread for each incoming client connection 
 	 */
 	public void run() {
 
@@ -139,7 +109,39 @@ public class Server {
 
 	}
 
-	public Map<String, String> receiveRequest(BufferedReader in) {
+
+//****************************************************************
+//	Protected methods
+//****************************************************************
+	
+	/**
+	 *	Synchronize with other servers by updating to match incoming data 
+	 */
+	protected void syncData(String newData){
+		try {
+			ObjectMapper mapper = new ObjectMapper();
+			TypeReference<ArrayList<String>> typeRef = new TypeReference<ArrayList<String>>() {
+			};
+			seatAssignments = mapper.readValue(newData, typeRef);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		log.fine("Received new data: " + seatAssignments.toString());
+	}
+	
+	
+	/**
+	 *	Return the serialized data 
+	 */
+	protected String getSerializedData(){
+		return serializeData();
+	}
+	
+	
+	/**
+	 * Read an incoming request as a JSON object  
+	 */
+	protected Map<String, String> receiveRequest(BufferedReader in) {
 		try {
 			String recString = in.readLine();
 			if(recString==null)
@@ -153,8 +155,12 @@ public class Server {
 		}
 		return null;
 	}
-
-	public void sendResponse(Map<String, String> respMap, PrintWriter out) {
+	
+	
+	/**
+	 * Send response to client as a JSON object   
+	 */
+	protected void sendResponse(Map<String, String> respMap, PrintWriter out) {
 		ObjectMapper mapper = new ObjectMapper();
 		try {
 			String jsonResponse = mapper.writer().writeValueAsString(respMap);
@@ -164,20 +170,17 @@ public class Server {
 			e1.printStackTrace();
 		}
 	}
-
-	// *************************************************
-	// Lamport stuff
-
-
-	// receive
-
-	// *************************************************
-
-	public Map<String, String> processRequest(Map<String, String> receivedMap) {
+	
+	
+	/**
+	 * Process a request  
+	 */
+	protected Map<String, String> processRequest(Map<String, String> receivedMap) {
 
 		// this blocks until we have permission
-		Map<String, String> response = new HashMap<>();
 		mutex.requestCriticalSection();
+		
+		Map<String, String> response = new HashMap<>();
 		String message = "Meep Morp";
 		Requests requestType = null;
 		
@@ -240,12 +243,50 @@ public class Server {
 		}
 	
 		response.put(MessageFields.MESSAGE.toString(), message);
+		
+		// release the critical section
 		mutex.releaseCS(serializeData());
 
 		return response;
 	}
 
 	
+//****************************************************************
+//	Private methods
+//****************************************************************
+	
+	/**
+	 * Parse the input text file
+	 */
+	private void parseServerFile(String fileName) {
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))) {
+
+			// line 1 = serverID nServers nSeats
+			String[] toks = br.readLine().split(" ");
+			serverID = Integer.parseInt(toks[0])-1;
+			nServers = Integer.parseInt(toks[1]);
+			nSeats = Integer.parseInt(toks[2]);
+
+			// remaining lines = server locations
+			String nextServer = "";
+			servers = new ArrayList<>(nServers);
+			ports = new ArrayList<>(nServers);
+			while ((nextServer = br.readLine()) != null) {
+				String[] serverToks = nextServer.split(":");
+				servers.add(InetAddress.getByName(serverToks[0]));
+				ports.add(Integer.parseInt(serverToks[1]));
+			}
+			tcpPort = ports.get(serverID);
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
+	/**
+	 * serialize data into a JSON string  
+	 */
 	private String serializeData() {
 		ObjectMapper mapper = new ObjectMapper();
 
@@ -260,11 +301,15 @@ public class Server {
 	
 	
 	
+//****************************************************************
+//	main()
+//****************************************************************
+	
 	/**
 	 * Run the main program
 	 * 
 	 * @param args
-	 *            command line input. Expects [tcpPort] [inventory file]
+	 *            command line input. Expects [server file] [optional "restart"]
 	 */
 	public static void main(String[] args) {
 		if (args.length < 1 || args.length > 2) {

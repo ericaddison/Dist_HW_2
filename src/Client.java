@@ -21,7 +21,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Client {
-	
+		
+//****************************************************************
+//	Fields
+//****************************************************************	
 	public static final int TIMEOUT=100;
 	
 	private Socket tcpSocket = null;
@@ -32,12 +35,95 @@ public class Client {
 	private List<Integer> ports;
 	private List<String> commands;
 	
+	
+//****************************************************************
+//	Public Methods
+//****************************************************************	
+
 	public Client(String fileName) {
 		super();
 		parseClientFile(fileName);
 	}
-
 	
+	
+	/**
+	 * Run the client command-line interface
+	 */
+	public void run() throws SocketTimeoutException{
+
+		try (Scanner sc = new Scanner(System.in);) {
+			// connect TCP by default
+			connectTCP();
+			
+			// execute preloaded commands
+			for( String command : commands ){
+				System.out.println("Executing preloaded command: " + command);
+				String response = processCommand(command);
+				System.out.println(">>> " + response);
+			}
+			
+			// main command loop
+			System.out.print(">>> ");
+			while (sc.hasNextLine()){
+				String response = processCommand(sc.nextLine());
+				System.out.print(response + " \n>>> ");
+			}
+
+		} catch (Exception e){
+			e.printStackTrace();
+		}
+
+		System.out.println("Good Bye!");
+	}
+	
+//****************************************************************
+//	Protected Methods
+//****************************************************************
+	
+	/**
+	 * Send a JSON formatted request to the server
+	 */
+	protected void sendRequest(Map<String, String> reqMap) {
+		ObjectMapper mapper = new ObjectMapper();
+		try {
+			String jsonRequest = mapper.writer().writeValueAsString(reqMap);
+			out.println(jsonRequest);
+			out.flush();
+		} catch (JsonProcessingException e1) {
+			e1.printStackTrace();
+		}
+	}
+	
+	
+	/**
+	 * Receive a JSON formatted response from the server
+	 */
+	protected Map<String, String> receiveResponse() {
+		try {
+			String recString = in.readLine();
+			if( recString == null)
+				return null;
+			
+			ObjectMapper mapper = new ObjectMapper();
+			TypeReference<HashMap<String, String>> typeRef 
+			  = new TypeReference<HashMap<String, String>>() {};
+			  
+			  return mapper.readValue(recString, typeRef);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	
+	
+//****************************************************************
+//	Private Methods
+//****************************************************************
+
+	/**
+	 * Parse client config file 
+	 */
 	private void parseClientFile(String fileName) {
 		try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(fileName)))) {
 
@@ -65,52 +151,12 @@ public class Client {
 			e.printStackTrace();
 		}
 	}
-	
-	
-	/**
-	 * TODO: fill in javadoc
-	 * 
-	 * @param o
-	 *            the object to send
-	 */
-	public void sendRequest(Map<String, String> reqMap) {
-		ObjectMapper mapper = new ObjectMapper();
-		try {
-			String jsonRequest = mapper.writer().writeValueAsString(reqMap);
-			out.println(jsonRequest);
-			out.flush();
-		} catch (JsonProcessingException e1) {
-			e1.printStackTrace();
-		}
-	}
 
-	/**
-	 * TODO: fill in javadoc
-	 * 
-	 * @param o
-	 *            the object to send
-	 */
-	public Map<String, String> receiveResponse() {
-		try {
-			String recString = in.readLine();
-			if( recString == null)
-				return null;
-			
-			ObjectMapper mapper = new ObjectMapper();
-			TypeReference<HashMap<String, String>> typeRef 
-			  = new TypeReference<HashMap<String, String>>() {};
-			  
-			  return mapper.readValue(recString, typeRef);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
-
+	
 	/**
 	 * Connect to the server via TCP
 	 */
-	public void connectTCP() throws SocketTimeoutException{
+	private void connectTCP() throws SocketTimeoutException{
 		try {
 			
 			for(int serverNum=0; serverNum<nServers; serverNum++){
@@ -134,47 +180,18 @@ public class Client {
 			e.printStackTrace();
 		}
 	}
-
-
-
-	/**
-	 * Run the client command-line interface
-	 */
-	public void run() throws SocketTimeoutException{
-
-		try (Scanner sc = new Scanner(System.in);) {
-			System.out.print(">>> ");
-
-			// connect TCP by default
-			connectTCP();
-			
-			// execute preloaded commands
-			for( String command : commands ){
-				System.out.println("Executing preloaded command: " + command);
-				processCommand(command);
-			}
-			
-			// main command loop
-			while (sc.hasNextLine())
-				processCommand(sc.nextLine());
-
-		} catch (Exception e){
-			e.printStackTrace();
-		}
-
-		System.out.println("Good Bye!");
-		
-	}
-
 	
-	private boolean processCommand(String command){
+	
+	/**
+	 *	Process a command string 
+	 */
+	private String processCommand(String command){
 		String[] tokens = command.split(" ");
 		Map<String, String> reqMap = new HashMap<>();
 
 		if (tokens[0].equals("reserve")){
 			if(tokens.length<2){
-				System.out.println("NOTE: not enough tokens in reserve string");
-				return false;
+				return "NOTE: not enough tokens in reserve string";
 			}
 			reqMap.put(MessageFields.REQUEST.toString(), Requests.RESERVE.toString());
 			reqMap.put(MessageFields.NAME.toString(), tokens[1]);
@@ -183,8 +200,7 @@ public class Client {
 		
 		else if (tokens[0].equals("bookSeat")){
 			if(tokens.length<3){
-				System.out.println("NOTE: not enough tokens in bookseat string");
-				return false;
+				return "NOTE: not enough tokens in bookseat string";
 			}
 			reqMap.put(MessageFields.REQUEST.toString(), Requests.BOOKSEAT.toString());
 			reqMap.put(MessageFields.NAME.toString(), tokens[1]);
@@ -193,8 +209,7 @@ public class Client {
 
 		else if (tokens[0].equals("search")){
 			if(tokens.length<2){
-				System.out.println("NOTE: not enough tokens in search string");
-				return false;
+				return "NOTE: not enough tokens in search string";
 			}
 			reqMap.put(MessageFields.REQUEST.toString(), Requests.SEARCH.toString());
 			reqMap.put(MessageFields.NAME.toString(), tokens[1]);
@@ -202,16 +217,14 @@ public class Client {
 
 		else if (tokens[0].equals("delete")){
 			if(tokens.length<2){
-				System.out.println("NOTE: not enough tokens in delete string");
-				return false;
+				return "NOTE: not enough tokens in delete string";
 			}
 			reqMap.put(MessageFields.REQUEST.toString(), Requests.DELETE.toString());
 			reqMap.put(MessageFields.NAME.toString(), tokens[1]);
 		}
 
 		else{
-			System.out.print("ERROR: No such command\n" + "\n>>> ");
-			return false;
+			return "ERROR: No such command";
 		}
 		
 		sendRequest(reqMap);
@@ -230,10 +243,13 @@ public class Client {
 		
 		// print message from server
 		String responseString = response.get(MessageFields.MESSAGE.toString());
-		System.out.print(responseString + "\n>>> ");
-		return true;
+		return responseString;
 	}
 	
+	
+//****************************************************************
+//	main()
+//****************************************************************
 	
 	/**
 	 * Main function.
