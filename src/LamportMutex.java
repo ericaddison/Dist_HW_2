@@ -264,20 +264,20 @@ public class LamportMutex {
 	
 	private void processMessage(LamportMessage lm) {
 		
-		server.log.log(Level.FINER, "Received message " + lm.toString());
+		server.log.log(Level.FINER, "Processing message " + lm.toString());
 		
 		// behavior determined by message type
 		if(lm.type == LamportMessageType.CS_REQUEST){
-			server.log.log(Level.FINEST, "Processing REQUEST message");
 			Q.add(lm);	// add his timestamp or our timestamp?
+			server.log.log(Level.FINEST, "Processing REQUEST message: Q = " + Q);
 			sendMessage(lm.serverID, LamportMessage.ACK(serverID, clock).toString());
 		} else if(lm.type == LamportMessageType.CS_ACK){
 			server.log.log(Level.FINEST, "Processing ACK message");
 			numACKs++;
 		} else if(lm.type == LamportMessageType.CS_RELEASE){
-			server.log.log(Level.FINEST, "Processing RELEASE message");
 			// remove their entry from the Q
 			Q.remove();
+			server.log.log(Level.FINEST, "Processing RELEASE message: Q = " + Q);
 			
 			// update server data
 			server.syncData(lm.data);

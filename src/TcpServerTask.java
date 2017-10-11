@@ -26,7 +26,9 @@ public class TcpServerTask implements Runnable {
 			while ((receivedMap = server.receiveRequest(in)) != null) {
 				server.log.info("Received request map " + receivedMap + " from " + clientSocket.getInetAddress());
 				Map<String, String> respMap = server.processRequest(receivedMap);
-				if(respMap!=null){
+				if(respMap==null)
+					break;
+				else {
 					server.log.info("Sending response map " + respMap + " to " + clientSocket.getInetAddress());
 					server.sendResponse(respMap, out);
 				}
@@ -39,6 +41,13 @@ public class TcpServerTask implements Runnable {
 			server.log.warning("IOException! Client " + clientSocket.getInetAddress() + " probably disconnected...");
 		} catch (NullPointerException e){
 			server.log.warning("NullPointerException! Client " + clientSocket.getInetAddress() + " probably disconnected...");
+		} finally {
+			try {
+				server.log.fine("Closing connection to client " + clientSocket.getInetAddress());
+				clientSocket.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 		
 	}

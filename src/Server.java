@@ -9,13 +9,11 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
-import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
@@ -47,7 +45,7 @@ public class Server {
 		log.getParent().removeHandler(log.getParent().getHandlers()[0]);
 		
 		try {
-			FileHandler fh = new FileHandler("server_log_" + System.currentTimeMillis() + ".log");
+			FileHandler fh = new FileHandler("logs/server_log_" + serverID + ".log");
 			fh.setFormatter(new SimpleFormatter());
 			fh.setLevel(logLevel);
 			log.addHandler(fh);
@@ -145,7 +143,7 @@ public class Server {
 		try {
 			String recString = in.readLine();
 			if(recString==null)
-				recString = "{}";
+				return null;
 			ObjectMapper mapper = new ObjectMapper();
 			TypeReference<HashMap<String, String>> typeRef = new TypeReference<HashMap<String, String>>() {
 			};
@@ -178,8 +176,8 @@ public class Server {
 	public Map<String, String> processRequest(Map<String, String> receivedMap) {
 
 		// this blocks until we have permission
-		mutex.requestCriticalSection();
 		Map<String, String> response = new HashMap<>();
+		mutex.requestCriticalSection();
 		String message = "Meep Morp";
 		Requests requestType = null;
 		

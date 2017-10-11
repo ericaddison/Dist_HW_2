@@ -148,69 +148,15 @@ public class Client {
 			// connect TCP by default
 			connectTCP();
 			
-			// main command loop
-			while (sc.hasNextLine()) {
-				String[] tokens = sc.nextLine().split(" ");
-				Map<String, String> reqMap = new HashMap<>();
-
-				if (tokens[0].equals("reserve")){
-					if(tokens.length<2){
-						System.out.println("NOTE: not enough tokens in reserve string");
-						continue;
-					}
-					reqMap.put(MessageFields.REQUEST.toString(), Requests.RESERVE.toString());
-					reqMap.put(MessageFields.NAME.toString(), tokens[1]);
-				}
-					
-				
-				else if (tokens[0].equals("bookSeat")){
-					if(tokens.length<3){
-						System.out.println("NOTE: not enough tokens in bookseat string");
-						continue;
-					}
-					reqMap.put(MessageFields.REQUEST.toString(), Requests.BOOKSEAT.toString());
-					reqMap.put(MessageFields.NAME.toString(), tokens[1]);
-					reqMap.put(MessageFields.SEATNUM.toString(), tokens[2]);
-				}
-
-				else if (tokens[0].equals("search")){
-					if(tokens.length<2){
-						System.out.println("NOTE: not enough tokens in search string");
-						continue;
-					}
-					reqMap.put(MessageFields.REQUEST.toString(), Requests.SEARCH.toString());
-					reqMap.put(MessageFields.NAME.toString(), tokens[1]);
-				}
-
-				else if (tokens[0].equals("delete")){
-					if(tokens.length<2){
-						System.out.println("NOTE: not enough tokens in delete string");
-						continue;
-					}
-					reqMap.put(MessageFields.REQUEST.toString(), Requests.DELETE.toString());
-					reqMap.put(MessageFields.NAME.toString(), tokens[1]);
-				}
-
-				else{
-					System.out.print("ERROR: No such command\n" + "\n>>> ");
-					continue;
-				}
-				
-				sendRequest(reqMap);
-				Map<String, String> response = receiveResponse();
-				
-				// if connection to server failed, try to reconnect
-				if( response==null ){
-					connectTCP();
-					sendRequest(reqMap);
-					response = receiveResponse();
-				}
-				
-				// print message from server
-				String responseString = response.get(MessageFields.MESSAGE.toString());
-				System.out.print(responseString + "\n>>> ");
-
+			// execute preloaded commands
+			for( String command : commands ){
+				System.out.println("Executing preloaded command: " + command);
+				processCommand(command);
 			}
+			
+			// main command loop
+			while (sc.hasNextLine())
+				processCommand(sc.nextLine());
 
 		} catch (Exception e){
 			e.printStackTrace();
@@ -220,6 +166,75 @@ public class Client {
 		
 	}
 
+	
+	private boolean processCommand(String command){
+		String[] tokens = command.split(" ");
+		Map<String, String> reqMap = new HashMap<>();
+
+		if (tokens[0].equals("reserve")){
+			if(tokens.length<2){
+				System.out.println("NOTE: not enough tokens in reserve string");
+				return false;
+			}
+			reqMap.put(MessageFields.REQUEST.toString(), Requests.RESERVE.toString());
+			reqMap.put(MessageFields.NAME.toString(), tokens[1]);
+		}
+			
+		
+		else if (tokens[0].equals("bookSeat")){
+			if(tokens.length<3){
+				System.out.println("NOTE: not enough tokens in bookseat string");
+				return false;
+			}
+			reqMap.put(MessageFields.REQUEST.toString(), Requests.BOOKSEAT.toString());
+			reqMap.put(MessageFields.NAME.toString(), tokens[1]);
+			reqMap.put(MessageFields.SEATNUM.toString(), tokens[2]);
+		}
+
+		else if (tokens[0].equals("search")){
+			if(tokens.length<2){
+				System.out.println("NOTE: not enough tokens in search string");
+				return false;
+			}
+			reqMap.put(MessageFields.REQUEST.toString(), Requests.SEARCH.toString());
+			reqMap.put(MessageFields.NAME.toString(), tokens[1]);
+		}
+
+		else if (tokens[0].equals("delete")){
+			if(tokens.length<2){
+				System.out.println("NOTE: not enough tokens in delete string");
+				return false;
+			}
+			reqMap.put(MessageFields.REQUEST.toString(), Requests.DELETE.toString());
+			reqMap.put(MessageFields.NAME.toString(), tokens[1]);
+		}
+
+		else{
+			System.out.print("ERROR: No such command\n" + "\n>>> ");
+			return false;
+		}
+		
+		sendRequest(reqMap);
+		Map<String, String> response = receiveResponse();
+		
+		// if connection to server failed, try to reconnect
+		if( response==null ){
+			try {
+				connectTCP();
+			} catch (SocketTimeoutException e) {
+				e.printStackTrace();
+			}
+			sendRequest(reqMap);
+			response = receiveResponse();
+		}
+		
+		// print message from server
+		String responseString = response.get(MessageFields.MESSAGE.toString());
+		System.out.print(responseString + "\n>>> ");
+		return true;
+	}
+	
+	
 	/**
 	 * Main function.
 	 */
