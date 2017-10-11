@@ -2,3 +2,4 @@
 .project
 *.zip
 bin
+*.class
